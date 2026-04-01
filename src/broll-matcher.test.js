@@ -316,3 +316,93 @@ describe("B-roll Matcher — no duplicate clip usage", () => {
     assert.equal(usedClipIds.length, uniqueIds.size, "should not reuse clips");
   });
 });
+
+
+// ============================================================
+// ADVERSARIAL TESTS — bugs found by adversary agent
+// ============================================================
+
+describe("ADVERSARY — identifyMoments overlapping segments shrink end time", () => {
+  it("should not shrink moment end when an overlapping segment has a smaller end time", () => {
+    // Bug: currentMoment.end = seg.end overwrites unconditionally.
+    // When a shorter overlapping segment is grouped into the moment,
+    // the moment's end shrinks, losing coverage of the first segment.
+    const segments = [
+      { start: 0, end: 20, text: "first long segment about surgery" },
+      { start: 5, end: 10, text: "overlapping shorter segment about hospital" },
+    ];
+    const moments = identifyMoments(segments, { windowSize: 25 });
+    assert.equal(moments.length, 1, "should group into 1 moment");
+    // The moment should end at 20 (the max), not 10
+    assert.equal(moments[0].end, 20,
+      `moment end should be 20 (max of segment ends), got ${moments[0].end} — ` +
+      "overlapping segment shrunk the moment end from 20 to 10"
+    );
+  });
+
+  it("should preserve end time with multiple overlapping segments", () => {
+    const segments = [
+      { start: 0, end: 30, text: "long segment about medical procedures" },
+      { start: 2, end: 5, text: "short overlap one" },
+      { start: 8, end: 12, text: "short overlap two" },
+    ];
+    // With windowSize=35, all should group into one moment
+    const moments = identifyMoments(segments, { windowSize: 35 });
+    assert.equal(moments.length, 1);
+    assert.equal(moments[0].end, 30,
+      `moment end should be 30 (max), got ${moments[0].end}`
+    );
+  });
+});
+
+describe("ADVERSARY — scoreMatch does not trim tag whitespace", () => {
+  it("should score tags with spaces after commas at tag-match level (0.8), not substring level (0.3)", () => {
+    // Bug: tags.split(",") produces [" surgery", " hospital"] when
+    // tags are "medical, surgery, hospital". tagWords.includes("surgery")
+    // fails because " surgery" !== "surgery". Falls through to substring
+    // match at 0.3 instead of 0.8.
+    const clip = {
+      description: "generic clip with no keyword overlap",
+      tags: "medical, surgery, hospital, operating",
+    };
+    const score = scoreMatch(clip, ["surgery", "hospital"]);
+    // Each keyword should score 0.8 (tag match), total = 1.6/2 = 0.8
+    // Bug causes each to score 0.3 (substring), total = 0.6/2 = 0.3
+    assert.ok(score >= 0.7,
+      `score should be >= 0.7 for exact tag matches but got ${score} — ` +
+      "tags with spaces after commas are not trimmed before comparison"
+    );
+  });
+
+  it("should handle tags with mixed whitespace patterns", () => {
+    const clip = {
+      description: "nothing relevant here",
+      tags: " nature , forest , stream ",
+    };
+    const score = scoreMatch(clip, ["nature", "forest", "stream"]);
+    // Should get 0.8 per keyword = 2.4/3 = 0.8
+    assert.ok(score >= 0.7,
+      `score should be >= 0.7 but got ${score} — whitespace in tags not handled`
+    );
+  });
+});
+
+describe("ADVERSARY — extractKeywords filters two-letter domain terms", () => {
+  it("should preserve meaningful two-letter domain acronyms like AI, CT, VR", () => {
+    // Bug: filter(w => w.length > 2) removes all 2-char words.
+    // Domain-specific acronyms like AI, CT, MR, VR, AR are lost,
+    // making it impossible to match B-roll for these topics.
+    const keywords = extractKeywords("The doctor used AI for CT scan analysis");
+    assert.ok(keywords.includes("ai"),
+      `keywords should include 'ai' but got [${keywords.join(", ")}] — ` +
+      "two-letter words are unconditionally filtered out"
+    );
+  });
+
+  it("should preserve two-letter acronym VR", () => {
+    const keywords = extractKeywords("VR headset for surgery training");
+    assert.ok(keywords.includes("vr"),
+      `keywords should include 'vr' but got [${keywords.join(", ")}]`
+    );
+  });
+});

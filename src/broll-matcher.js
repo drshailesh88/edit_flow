@@ -21,6 +21,11 @@ import { openDatabase } from "./broll-indexer.js";
  * @param {string} text - Transcript segment text
  * @returns {string[]} Array of meaningful keywords
  */
+const DOMAIN_ACRONYMS = new Set([
+  "ai", "ct", "mr", "vr", "ar", "3d", "or", "er", "iq", "uv", "ir",
+  "iv", "bp", "hr", "rx", "ob", "gp", "gi", "ot", "pt", "rn", "md",
+]);
+
 export function extractKeywords(text) {
   if (!text) return [];
 
@@ -48,7 +53,7 @@ export function extractKeywords(text) {
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter(w => w.length > 2 && !STOP_WORDS.has(w))
+    .filter(w => (w.length > 2 || DOMAIN_ACRONYMS.has(w)) && !STOP_WORDS.has(w))
     .filter((w, i, arr) => arr.indexOf(w) === i); // deduplicate
 }
 
@@ -71,7 +76,7 @@ export function scoreMatch(clip, keywords) {
   const desc = (clip.description || "").toLowerCase();
   const tags = (clip.tags || "").toLowerCase();
   const descWords = desc.split(/[\s,:/]+/).filter(Boolean);
-  const tagWords = tags.split(",").filter(Boolean);
+  const tagWords = tags.split(",").map(t => t.trim()).filter(Boolean);
 
   let score = 0;
   let maxPossible = keywords.length;
@@ -171,7 +176,7 @@ export function identifyMoments(segments, options = {}) {
 
     // If this segment fits in the current window, add it
     if (seg.end - currentMoment.start <= windowSize) {
-      currentMoment.end = seg.end;
+      currentMoment.end = Math.max(currentMoment.end, seg.end);
       currentMoment.texts.push(seg.text);
     } else {
       // Close current moment and start new one
