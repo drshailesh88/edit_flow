@@ -88,10 +88,13 @@ export function computeFlashOpacity(start, end, currentTime) {
   if (typeof start !== "number" || typeof end !== "number" || typeof currentTime !== "number") {
     return 0;
   }
+  if (isNaN(start) || isNaN(end) || isNaN(currentTime)) return 0;
 
   const fadeIn = TERMFLASH_STYLE.fadeInDuration;
   const fadeOut = TERMFLASH_STYLE.fadeOutDuration;
   const duration = end - start;
+
+  if (duration <= 0) return 0;
 
   // If duration is too short for both fades, scale them proportionally
   const totalFade = fadeIn + fadeOut;
@@ -129,6 +132,7 @@ export function computeFlashOpacity(start, end, currentTime) {
  */
 export function checkCaptionCollision(captionStyle, flashTopPosition, videoHeight) {
   if (typeof flashTopPosition !== "number" || typeof videoHeight !== "number") return true;
+  if (isNaN(flashTopPosition) || isNaN(videoHeight)) return true;
   if (videoHeight <= 0) return true;
 
   // Caption zones (approximate, including padding):
@@ -157,7 +161,7 @@ export function checkCaptionCollision(captionStyle, flashTopPosition, videoHeigh
  * @returns {number} Safe top position in pixels
  */
 export function getSafeFlashPosition(captionStyle, videoHeight) {
-  if (typeof videoHeight !== "number" || videoHeight <= 0) {
+  if (typeof videoHeight !== "number" || isNaN(videoHeight) || videoHeight <= 0) {
     return TERMFLASH_POSITION.short.top;
   }
 

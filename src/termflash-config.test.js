@@ -240,3 +240,32 @@ describe("getSafeFlashPosition", () => {
     assert.equal(checkCaptionCollision("short", pos, 1080), false);
   });
 });
+
+// =============================================================================
+// ADVERSARIAL TESTS
+// =============================================================================
+
+describe("ADVERSARIAL: computeFlashOpacity NaN handling", () => {
+  it("returns 0 for NaN inputs", () => {
+    assert.equal(computeFlashOpacity(NaN, 8, 6), 0);
+    assert.equal(computeFlashOpacity(5, NaN, 6), 0);
+    assert.equal(computeFlashOpacity(5, 8, NaN), 0);
+  });
+
+  it("returns 0 for zero-duration flash (start === end)", () => {
+    assert.equal(computeFlashOpacity(5, 5, 5), 0);
+  });
+});
+
+describe("ADVERSARIAL: checkCaptionCollision NaN handling", () => {
+  it("treats NaN inputs as invalid (collision)", () => {
+    assert.equal(checkCaptionCollision("short", NaN, 1080), true);
+    assert.equal(checkCaptionCollision("short", 120, NaN), true);
+  });
+});
+
+describe("ADVERSARIAL: getSafeFlashPosition NaN handling", () => {
+  it("treats NaN videoHeight as invalid", () => {
+    assert.equal(getSafeFlashPosition("longform", NaN), TERMFLASH_POSITION.short.top);
+  });
+});
