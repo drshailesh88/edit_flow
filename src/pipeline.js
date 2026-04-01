@@ -9,6 +9,7 @@ import { ingest } from "./ingest.js";
 import { selectTakes } from "./take-selector.js";
 import { assembleFromSegments, getVideoDuration } from "./assembler.js";
 import { extractShortsFromTakes } from "./shorts-extractor.js";
+import { detectFace, autoReframe } from "./auto-reframe.js";
 import { mkdir } from "node:fs/promises";
 import { writeFile, readFile } from "node:fs/promises";
 import { join, basename } from "node:path";
@@ -237,8 +238,31 @@ export async function runPhase2(recordingPath, options = {}) {
   const shortsMetaPath = join(dataDir, `${recordingName}-shorts.json`);
   await writeFile(shortsMetaPath, JSON.stringify(shortsResult, null, 2));
 
-  // Step 3: Assemble each short
-  console.log(`\nSTEP 3: Assemble ${shortsResult.shorts.length} Shorts`);
+  // Step 3: Detect face for auto-reframe (once for the whole recording)
+  console.log("\nSTEP 3: Face Detection (for auto-reframe)");
+  console.log("─────────────────────────────────────");
+  let faceResult;
+  try {
+    faceResult = await detectFace(recordingPath, { samples: 10 });
+    if (faceResult.face_detected) {
+      console.log(`  Face detected: center (${faceResult.center_x}, ${faceResult.center_y})`);
+      console.log(`  Detections: ${faceResult.detections}/${faceResult.samples} frames`);
+    } else {
+      console.log("  No face detected — using frame center as fallback");
+    }
+  } catch (err) {
+    console.log(`  Face detection failed: ${err.message} — using frame center`);
+    faceResult = {
+      face_detected: false,
+      center_x: Math.round((mediaInfo.width || 1920) / 2),
+      center_y: Math.round((mediaInfo.height || 1080) / 2),
+      frame_width: mediaInfo.width || 1920,
+      frame_height: mediaInfo.height || 1080,
+    };
+  }
+
+  // Step 4: Assemble + Auto-Reframe each short
+  console.log(`\nSTEP 4: Assemble + Reframe ${shortsResult.shorts.length} Shorts`);
   console.log("─────────────────────────────────────");
 
   const assembledShorts = [];
@@ -252,25 +276,32 @@ export async function runPhase2(recordingPath, options = {}) {
       continue;
     }
 
-    const shortOutputPath = join(shortsDir, `${recordingName}-short-${short.id}.mp4`);
+    // Assemble 16:9 version first
+    const shortHorizontalPath = join(shortsDir, `${recordingName}-short-${short.id}-16x9.mp4`);
+    const shortVerticalPath = join(shortsDir, `${recordingName}-short-${short.id}.mp4`);
 
-    console.log(`  Short ${short.id}: ${short.duration.toFixed(1)}s — assembling...`);
-    await assembleFromSegments(recordingPath, shortSegments, shortOutputPath);
+    console.log(`  Short ${short.id}: ${short.duration.toFixed(1)}s — assembling 16:9...`);
+    await assembleFromSegments(recordingPath, shortSegments, shortHorizontalPath);
 
-    const actualDuration = await getVideoDuration(shortOutputPath);
+    // Auto-reframe to 9:16
+    console.log(`  Short ${short.id}: reframing to 9:16...`);
+    await autoReframe(shortHorizontalPath, shortVerticalPath, { faceResult });
+
+    const actualDuration = await getVideoDuration(shortVerticalPath);
     assembledShorts.push({
       id: short.id,
-      path: shortOutputPath,
+      horizontalPath: shortHorizontalPath,
+      verticalPath: shortVerticalPath,
       duration: actualDuration,
       text: short.text,
       confidence: short.confidence,
     });
 
-    console.log(`  Short ${short.id}: ${actualDuration.toFixed(1)}s → ${shortOutputPath}`);
+    console.log(`  Short ${short.id}: ${actualDuration.toFixed(1)}s → ${shortVerticalPath}`);
   }
 
   console.log(`\n═══════════════════════════════════════`);
-  console.log(`PHASE 2 COMPLETE — ${assembledShorts.length} Shorts created`);
+  console.log(`PHASE 2 COMPLETE — ${assembledShorts.length} Shorts created (16:9 + 9:16)`);
   console.log("═══════════════════════════════════════");
 
   const result = {
@@ -278,6 +309,7 @@ export async function runPhase2(recordingPath, options = {}) {
     shortsDir,
     shortsCount: assembledShorts.length,
     shorts: assembledShorts,
+    faceDetection: faceResult,
     stats: shortsResult.stats,
     warnings: shortsResult.warnings,
   };
