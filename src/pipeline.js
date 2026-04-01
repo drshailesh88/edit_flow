@@ -1,9 +1,10 @@
 /**
- * Pipeline Module — Phase 1 + Phase 2 + Phase 3
+ * Pipeline Module — Phase 1 + Phase 2 + Phase 3 + Phase 4
  *
  * Phase 1: Ingest → Take Selection → Assembler (Long-form MP4)
  * Phase 2: Shorts Extraction → Per-Short Assembly (7-8 Short MP4s)
  * Phase 3: B-roll Automation — Index Library + Match + Place
+ * Phase 4: Captions + Term Flashes — Remotion Overlay + FFmpeg Composite
  */
 
 import { ingest } from "./ingest.js";
@@ -13,6 +14,10 @@ import { extractShortsFromTakes } from "./shorts-extractor.js";
 import { detectFace, autoReframe } from "./auto-reframe.js";
 import { indexLibrary, getIndexStats } from "./broll-indexer.js";
 import { placeBrollLongform, placeBrollShort, formatBrollReport, computeBrollConfidence } from "./broll-placer.js";
+import { generateCaptions } from "./transcreator.js";
+import { extractTermFlashes } from "./term-identifier.js";
+import { selectCaptionPreset } from "./brightness-analyzer.js";
+import { renderAndComposite } from "./overlay-renderer.js";
 import { mkdir } from "node:fs/promises";
 import { writeFile, readFile } from "node:fs/promises";
 import { join, basename } from "node:path";
@@ -488,6 +493,250 @@ export async function runPhase3(recordingPath, options = {}) {
   return result;
 }
 
+/**
+ * Phase 4 pipeline: Captions + Term Flashes + Remotion Overlay + FFmpeg Composite
+ *
+ * Adds caption and term flash overlays to all videos from previous phases.
+ * Processes longform video first, then each short, sequentially (16GB constraint).
+ *
+ * Steps:
+ * 1. Load transcript from Phase 1 data
+ * 2. Generate captions (transcreate if Hindi/Hinglish)
+ * 3. Identify technical terms and key claims
+ * 4. Analyze brightness → select caption preset
+ * 5. Render Remotion overlay + FFmpeg composite for longform
+ * 6. Render Remotion overlay + FFmpeg composite for each short
+ */
+export async function runPhase4(recordingPath, options = {}) {
+  const {
+    outputDir = "output",
+    dataDir = "data",
+    manualPreset = null,
+  } = options;
+
+  const recordingName = basename(recordingPath).replace(/\.[^.]+$/, "");
+
+  console.log("═══════════════════════════════════════");
+  console.log(`PHASE 4: Captions + Term Flashes`);
+  console.log(`Recording: ${basename(recordingPath)}`);
+  console.log("═══════════════════════════════════════\n");
+
+  // Step 1: Load transcript
+  console.log("STEP 1: Load transcript");
+  console.log("─────────────────────────────────────");
+
+  let transcript;
+  try {
+    const transcriptPath = join(dataDir, `${recordingName}-transcript.json`);
+    transcript = JSON.parse(await readFile(transcriptPath, "utf-8"));
+    console.log(`  Loaded: ${transcript.segments.length} segments, language: ${transcript.language}\n`);
+  } catch {
+    throw new Error("Transcript not found — run Phase 1 first");
+  }
+
+  // Step 2: Generate captions
+  console.log("STEP 2: Generate Captions (transcreate if needed)");
+  console.log("─────────────────────────────────────");
+
+  const captionResult = await generateCaptions(transcript);
+
+  console.log(`  Total captions:   ${captionResult.stats.totalCaptions}`);
+  console.log(`  Direct (English): ${captionResult.stats.directCount}`);
+  console.log(`  Transcreated:     ${captionResult.stats.transcreatedCount}`);
+  console.log(`  Language:         ${captionResult.stats.language}\n`);
+
+  // Save captions
+  const captionsPath = join(dataDir, `${recordingName}-captions.json`);
+  await writeFile(captionsPath, JSON.stringify(captionResult, null, 2));
+
+  // Step 3: Identify terms and claims
+  console.log("STEP 3: Identify Terms + Key Claims");
+  console.log("─────────────────────────────────────");
+
+  const termResult = await extractTermFlashes(transcript);
+
+  console.log(`  Total flashes:  ${termResult.stats.totalFlashes}`);
+  console.log(`  Terms:          ${termResult.stats.terms}`);
+  console.log(`  Claims:         ${termResult.stats.claims}\n`);
+
+  // Save term flashes
+  const termsPath = join(dataDir, `${recordingName}-termflashes.json`);
+  await writeFile(termsPath, JSON.stringify(termResult, null, 2));
+
+  // Step 4: Process longform video
+  const longformPath = join(outputDir, `${recordingName}-edited.mp4`);
+  const longformFinalPath = join(outputDir, `${recordingName}-final.mp4`);
+  const results = { longform: null, shorts: [] };
+
+  if (existsSync(longformPath)) {
+    console.log("STEP 4: Longform — Brightness Analysis + Overlay");
+    console.log("─────────────────────────────────────");
+
+    const presetResult = await selectCaptionPreset(longformPath, { manualPreset });
+    console.log(`  Preset: ${presetResult.preset} (source: ${presetResult.source})`);
+    if (presetResult.analysis) {
+      console.log(`  Mean luminance: ${presetResult.analysis.meanLuminance}`);
+    }
+
+    const longformDuration = await getVideoDuration(longformPath);
+    console.log(`  Duration: ${(longformDuration / 60).toFixed(1)} min`);
+    console.log(`  Rendering Remotion overlay + compositing...`);
+
+    const longformResult = await renderAndComposite({
+      baseVideoPath: longformPath,
+      captions: captionResult.captions,
+      termFlashes: termResult.termFlashes,
+      captionPreset: presetResult.preset,
+      captionStyle: "longform",
+      durationInSeconds: longformDuration,
+      width: 1920,
+      height: 1080,
+      outputPath: longformFinalPath,
+      compositionId: "CaptionOverlay",
+    });
+
+    results.longform = {
+      outputPath: longformFinalPath,
+      preset: presetResult.preset,
+      presetSource: presetResult.source,
+      captionCount: captionResult.stats.totalCaptions,
+      termFlashCount: termResult.stats.totalFlashes,
+      duration: longformDuration,
+    };
+
+    console.log(`  Output: ${longformFinalPath}\n`);
+  } else {
+    console.log("STEP 4: Longform — SKIPPED (no edited video found)\n");
+  }
+
+  // Step 5: Process each short
+  console.log("STEP 5: Shorts — Overlay + Composite");
+  console.log("─────────────────────────────────────");
+
+  let phase2Result;
+  try {
+    const phase2Path = join(dataDir, `${recordingName}-phase2-result.json`);
+    phase2Result = JSON.parse(await readFile(phase2Path, "utf-8"));
+  } catch {
+    console.log("  Phase 2 data not found — skipping shorts overlay.\n");
+    phase2Result = null;
+  }
+
+  if (phase2Result && Array.isArray(phase2Result.shorts)) {
+    for (const short of phase2Result.shorts) {
+      const shortVideoPath = short.verticalPath;
+
+      if (!shortVideoPath || !existsSync(shortVideoPath)) {
+        console.log(`  Short ${short.id}: SKIPPED — video not found`);
+        continue;
+      }
+
+      // Analyze brightness per-short
+      const shortPreset = await selectCaptionPreset(shortVideoPath, { manualPreset });
+
+      // Filter captions and term flashes for this short's time range
+      const shortCaptions = filterEntriesForShort(captionResult.captions, short);
+      const shortTermFlashes = filterEntriesForShort(termResult.termFlashes, short);
+
+      const shortDuration = short.duration || await getVideoDuration(shortVideoPath);
+
+      // Rebase timestamps to start from 0 for the short
+      const rebasedCaptions = rebaseTimestamps(shortCaptions, short);
+      const rebasedTermFlashes = rebaseTimestamps(shortTermFlashes, short);
+
+      const shortFinalPath = shortVideoPath.replace(/\.mp4$/, "-captioned.mp4");
+
+      console.log(`  Short ${short.id}: ${shortDuration.toFixed(1)}s, preset: ${shortPreset.preset}, ${rebasedCaptions.length} captions, ${rebasedTermFlashes.length} flashes`);
+
+      await renderAndComposite({
+        baseVideoPath: shortVideoPath,
+        captions: rebasedCaptions,
+        termFlashes: rebasedTermFlashes,
+        captionPreset: shortPreset.preset,
+        captionStyle: "short",
+        durationInSeconds: shortDuration,
+        width: 1080,
+        height: 1920,
+        outputPath: shortFinalPath,
+        compositionId: "CaptionOverlayVertical",
+      });
+
+      results.shorts.push({
+        id: short.id,
+        outputPath: shortFinalPath,
+        preset: shortPreset.preset,
+        captionCount: rebasedCaptions.length,
+        termFlashCount: rebasedTermFlashes.length,
+        duration: shortDuration,
+      });
+
+      console.log(`  Short ${short.id}: → ${shortFinalPath}`);
+    }
+  }
+
+  // Step 6: Summary
+  console.log(`\n═══════════════════════════════════════`);
+  console.log(`PHASE 4 COMPLETE`);
+  if (results.longform) {
+    console.log(`  Longform: ${results.longform.outputPath}`);
+    console.log(`    Captions: ${results.longform.captionCount}, Term Flashes: ${results.longform.termFlashCount}`);
+    console.log(`    Preset: ${results.longform.preset} (${results.longform.presetSource})`);
+  }
+  console.log(`  Shorts processed: ${results.shorts.length}`);
+  for (const s of results.shorts) {
+    console.log(`    Short ${s.id}: ${s.captionCount} captions, ${s.termFlashCount} flashes`);
+  }
+  console.log("═══════════════════════════════════════");
+
+  // Save Phase 4 result
+  const resultPath = join(dataDir, `${recordingName}-phase4-result.json`);
+  await writeFile(resultPath, JSON.stringify(results, null, 2));
+
+  return results;
+}
+
+/**
+ * Filter caption/term flash entries that fall within a short's time range.
+ *
+ * @param {Array} entries - [{start, end, ...}]
+ * @param {Object} short - {start, end, ...} from Phase 2 shorts data
+ * @returns {Array} Filtered entries
+ */
+export function filterEntriesForShort(entries, short) {
+  if (!Array.isArray(entries) || !short) return [];
+
+  // Use the short's original transcript time range
+  // Entries with any overlap are included
+  const shortStart = short.start || 0;
+  const shortEnd = short.end || Infinity;
+
+  return entries.filter(entry => {
+    if (!entry || typeof entry.start !== "number" || typeof entry.end !== "number") return false;
+    // Include if there's any overlap
+    return entry.start < shortEnd && entry.end > shortStart;
+  });
+}
+
+/**
+ * Rebase timestamps so they start from 0 (relative to the short's start).
+ *
+ * @param {Array} entries - [{start, end, ...}]
+ * @param {Object} short - {start, end, ...} short with original timestamps
+ * @returns {Array} Entries with rebased timestamps
+ */
+export function rebaseTimestamps(entries, short) {
+  if (!Array.isArray(entries) || !short) return [];
+
+  const offset = short.start || 0;
+  const shortDuration = (short.end || 0) - offset;
+
+  return entries.map(entry => ({
+    ...entry,
+    start: Math.max(0, entry.start - offset),
+    end: Math.min(shortDuration, entry.end - offset),
+  }));
+}
+
 // CLI entry point
 if (process.argv[1] && process.argv[1].endsWith("pipeline.js") && process.argv[2]) {
   const phase = process.argv[2];
@@ -518,6 +767,16 @@ if (process.argv[1] && process.argv[1].endsWith("pipeline.js") && process.argv[2
   } else if (phase === "3") {
     const brollLibraryPath = process.argv[4] || null;
     runPhase3(recordingPath, { brollLibraryPath })
+      .then((result) => {
+        console.log("\nResult:", JSON.stringify(result, null, 2));
+      })
+      .catch((err) => {
+        console.error("Pipeline error:", err.message);
+        process.exit(1);
+      });
+  } else if (phase === "4") {
+    const manualPreset = process.argv[4] || null;
+    runPhase4(recordingPath, { manualPreset })
       .then((result) => {
         console.log("\nResult:", JSON.stringify(result, null, 2));
       })
