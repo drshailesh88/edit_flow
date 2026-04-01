@@ -64,7 +64,7 @@ export function analyzeTakes(segments) {
     // Clamp score
     fluencyScore = Math.max(0, Math.min(100, fluencyScore));
 
-    const isBadTake = fluencyScore < 50 || reasons.includes("fragment") || reasons.includes("incomplete");
+    const isBadTake = fluencyScore < 50 || reasons.includes("fragment") || reasons.includes("incomplete") || reasons.includes("trailing-off");
 
     return {
       ...segment,
@@ -197,15 +197,22 @@ export function textSimilarity(a, b) {
   if (wordsA.length === 0 && wordsB.length === 0) return 1;
   if (wordsA.length === 0 || wordsB.length === 0) return 0;
 
-  const setA = new Set(wordsA);
-  const setB = new Set(wordsB);
+  // Multiset (bag) Jaccard: count word frequencies, not just presence
+  const bagA = new Map();
+  const bagB = new Map();
+  for (const w of wordsA) bagA.set(w, (bagA.get(w) || 0) + 1);
+  for (const w of wordsB) bagB.set(w, (bagB.get(w) || 0) + 1);
 
   let intersection = 0;
-  for (const w of setA) {
-    if (setB.has(w)) intersection++;
+  let union = 0;
+  const allWords = new Set([...bagA.keys(), ...bagB.keys()]);
+  for (const w of allWords) {
+    const countA = bagA.get(w) || 0;
+    const countB = bagB.get(w) || 0;
+    intersection += Math.min(countA, countB);
+    union += Math.max(countA, countB);
   }
 
-  const union = new Set([...wordsA, ...wordsB]).size;
   return union > 0 ? intersection / union : 0;
 }
 
@@ -264,11 +271,8 @@ export function selectBestTakes(groups) {
 
   for (const group of groups) {
     if (group.length === 1) {
-      // Solo segment — discard if it's a fragment (false start) or truly terrible
-      const isFragment = group[0].analysis.reasons.includes("fragment");
-      const isTerrible = group[0].analysis.isBadTake && group[0].analysis.fluencyScore < 30;
-
-      if (isFragment || isTerrible) {
+      // Solo segment — discard if it's flagged as a bad take (no alternative exists)
+      if (group[0].analysis.isBadTake) {
         discarded.push({ ...group[0], discardReason: "bad-take-no-alternative" });
       } else {
         bestTakes.push(group[0]);
