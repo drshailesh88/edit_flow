@@ -41,6 +41,7 @@ export function buildTimeline(arollSegments, brollPlacements = []) {
   // Create A-roll entries
   for (const seg of arollSegments) {
     if (typeof seg.start !== "number" || typeof seg.end !== "number") continue;
+    if (!Number.isFinite(seg.start) || !Number.isFinite(seg.end)) continue;
     if (seg.end <= seg.start) continue;
 
     timeline.push({
@@ -55,9 +56,10 @@ export function buildTimeline(arollSegments, brollPlacements = []) {
   // Insert B-roll placements as overlay entries
   if (Array.isArray(brollPlacements)) {
     for (const placement of brollPlacements) {
-      if (!placement || typeof placement.insertAt !== "number") continue;
+      if (!placement || typeof placement.insertAt !== "number" || !Number.isFinite(placement.insertAt)) continue;
 
-      const duration = placement.duration || 5;
+      const duration = (typeof placement.duration === "number" && placement.duration > 0) ? placement.duration : 5;
+      if (!Number.isFinite(duration)) continue;
       timeline.push({
         id: timelineId++,
         type: "broll",
@@ -110,9 +112,7 @@ export function assembleManifest({
 
   const arollEntries = timeline.filter(e => e.type === "aroll");
   const brollEntries = timeline.filter(e => e.type === "broll");
-  const totalDuration = arollEntries.length > 0
-    ? Math.max(...arollEntries.map(e => e.end)) - Math.min(...arollEntries.map(e => e.start))
-    : 0;
+  const totalDuration = arollEntries.reduce((sum, e) => sum + e.duration, 0);
 
   // Detect potential issues for editorial review
   const flags = detectEditorialFlags({
@@ -213,8 +213,10 @@ export function detectEditorialFlags({ timeline, captions, termFlashes, totalDur
   for (let i = 1; i < arollEntries.length; i++) {
     const gap = arollEntries[i].start - arollEntries[i - 1].end;
     if (gap > 2) {
+      const gapStart = arollEntries[i - 1].end;
+      const gapEnd = arollEntries[i].start;
       const hasBrollInGap = brollEntries.some(
-        b => b.start >= arollEntries[i - 1].end && b.end <= arollEntries[i].start
+        b => b.start < gapEnd && b.end > gapStart
       );
       if (!hasBrollInGap) {
         flags.push({
@@ -324,12 +326,12 @@ Return ONLY the JSON object, no markdown or explanation.`,
     };
   }
 
-  // Apply the editor's notes to the manifest
+  // Apply the editor's notes to the manifest, normalizing field shapes
   return {
     ...manifest,
-    editorialNotes: editorReview.editorialNotes || [],
-    editorAssessment: editorReview.overallAssessment || "",
-    suggestedChanges: editorReview.suggestedChanges || [],
+    editorialNotes: Array.isArray(editorReview.editorialNotes) ? editorReview.editorialNotes : [],
+    editorAssessment: typeof editorReview.overallAssessment === "string" ? editorReview.overallAssessment : "",
+    suggestedChanges: Array.isArray(editorReview.suggestedChanges) ? editorReview.suggestedChanges : [],
     readyForCritic: editorReview.readyForCritic !== false,
   };
 }

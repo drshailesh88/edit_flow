@@ -166,13 +166,13 @@ describe("assembleManifest", () => {
     assert.equal(manifest.metadata.takeStats, null);
   });
 
-  it("calculates total duration from A-roll segments", () => {
+  it("calculates total duration as sum of A-roll segment durations", () => {
     const manifest = assembleManifest({
       recordingName: "test",
       segments: [{ start: 5, end: 15 }, { start: 20, end: 30 }],
     });
-    // totalDuration = max(end) - min(start) = 30 - 5 = 25
-    assert.equal(manifest.metadata.totalDuration, 25);
+    // totalDuration = (15-5) + (30-20) = 10 + 10 = 20 (not 25 span)
+    assert.equal(manifest.metadata.totalDuration, 20);
   });
 
   it("includes flags array", () => {
@@ -261,6 +261,72 @@ describe("detectEditorialFlags", () => {
     const flags = detectEditorialFlags({ timeline, captions: [], termFlashes: [], totalDuration: 25, type: "longform" });
     const gapFlag = flags.find(f => f.category === "gap");
     assert.equal(gapFlag, undefined);
+  });
+});
+
+// ─────────────────────────────────────────────────────
+// ADVERSARIAL: Codex-found bugs
+// ─────────────────────────────────────────────────────
+
+describe("ADVERSARIAL — Codex-found bugs", () => {
+  it("buildTimeline rejects zero-duration B-roll (not silently default)", () => {
+    const broll = [{ insertAt: 10, duration: 0, clipPath: "/clip.mp4" }];
+    const timeline = buildTimeline([{ start: 0, end: 20 }], broll);
+    const brollEntry = timeline.find(e => e.type === "broll");
+    // Zero-duration B-roll should be given default 5s (since 0 is invalid)
+    assert.equal(brollEntry.duration, 5);
+  });
+
+  it("buildTimeline drops NaN timestamps", () => {
+    const segments = [
+      { start: NaN, end: 10 },
+      { start: 0, end: NaN },
+      { start: 5, end: 15 },
+    ];
+    const timeline = buildTimeline(segments);
+    assert.equal(timeline.length, 1);
+    assert.equal(timeline[0].start, 5);
+  });
+
+  it("buildTimeline drops Infinity timestamps", () => {
+    const segments = [
+      { start: 0, end: Infinity },
+      { start: -Infinity, end: 10 },
+      { start: 5, end: 15 },
+    ];
+    const timeline = buildTimeline(segments);
+    assert.equal(timeline.length, 1);
+    assert.equal(timeline[0].start, 5);
+  });
+
+  it("buildTimeline drops B-roll with NaN insertAt", () => {
+    const broll = [{ insertAt: NaN, duration: 5 }];
+    const timeline = buildTimeline([{ start: 0, end: 20 }], broll);
+    assert.equal(timeline.filter(e => e.type === "broll").length, 0);
+  });
+
+  it("detectEditorialFlags treats overlapping B-roll as gap coverage", () => {
+    // B-roll starts before gap and ends after — should still count as coverage
+    const timeline = [
+      { id: 1, type: "aroll", start: 0, end: 10, duration: 10 },
+      { id: 2, type: "broll", start: 8, end: 17, duration: 9, confidence: "green" },
+      { id: 3, type: "aroll", start: 15, end: 25, duration: 10 },
+    ];
+    const flags = detectEditorialFlags({ timeline, captions: [], termFlashes: [], totalDuration: 20, type: "longform" });
+    const gapFlag = flags.find(f => f.category === "gap");
+    assert.equal(gapFlag, undefined, "Should not flag gap when B-roll overlaps it");
+  });
+
+  it("assembleManifest sums non-contiguous A-roll durations correctly", () => {
+    const manifest = assembleManifest({
+      recordingName: "test",
+      segments: [
+        { start: 0, end: 10 },    // 10s
+        { start: 100, end: 110 },  // 10s
+      ],
+    });
+    // Should be 20s (actual content), not 110s (span)
+    assert.equal(manifest.metadata.totalDuration, 20);
   });
 });
 
