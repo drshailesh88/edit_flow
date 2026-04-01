@@ -26,7 +26,7 @@
   - **Why fourth:** Captions are table stakes for social media. Term Flashes differentiate from generic content. Remotion is introduced here (not earlier) because simpler phases validate the core pipeline first.
   - Risk: **MEDIUM** (transcreation quality, Remotion render speed, ProRes alpha compositing)
 
-- [ ] Phase 5: Adversarial Quality Loop — Editor/Critic/Resolver
+- [x] Phase 5: Adversarial Quality Loop — Editor/Critic/Resolver
   - **Deliverable:** Every Manifest is evaluated by a Critic agent against the Editorial Voice before rendering. Outputs tagged Green/Yellow/Red.
   - **Requirements:** Editor agent (generates Manifest), Critic agent (attacks Manifest using Editorial Voice), Resolver agent (applies valid fixes), Convergence logic (3 rounds default, 5 max), Confidence Tagger (Green/Yellow/Red)
   - **Why fifth:** The adversarial loop is the quality gate. Building it after all pipeline stages exist means the Critic can evaluate complete Manifests (cuts + B-roll + Captions + Term Flashes), not partial ones.

@@ -48,11 +48,11 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [ ] Chapter Titles are derived from numbered script section headings
 
 ### Adversarial Quality Loop
-- [ ] Editor agent generates initial Manifest from Transcript + B-roll Index
-- [ ] Critic agent evaluates Manifest against Editorial Voice document (cut placement, take selection, B-roll placement, term flash placement)
-- [ ] Resolver agent synthesizes valid criticisms into a revised Manifest
-- [ ] Loop runs 3 Rounds by default, up to 5 max
-- [ ] Critic evaluates Manifest JSON + Transcript only (no rendered preview per Round)
+- [x] Editor agent generates initial Manifest from Transcript + B-roll Index
+- [x] Critic agent evaluates Manifest against Editorial Voice document (cut placement, take selection, B-roll placement, term flash placement)
+- [x] Resolver agent synthesizes valid criticisms into a revised Manifest
+- [x] Loop runs 3 Rounds by default, up to 5 max
+- [x] Critic evaluates Manifest JSON + Transcript only (no rendered preview per Round)
 
 ### Rendering (Track A)
 - [x] Remotion renders Captions + Term Flashes + Chapter Titles as transparent ProRes 4444 overlay
@@ -72,10 +72,10 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [ ] Frame-accurate timecodes in XML
 
 ### Confidence & Review
-- [ ] Every output is tagged Green, Yellow, or Red
-- [ ] Green: adversarial loop converged in ≤3 Rounds, no flags
-- [ ] Yellow: loop converged in 4-5 Rounds, or specific flags (no B-roll match, ambiguous take, SSD disconnected)
-- [ ] Red: render failed, transcript unusable, Whisper confidence below threshold
+- [x] Every output is tagged Green, Yellow, or Red
+- [x] Green: adversarial loop converged in ≤3 Rounds, no flags
+- [x] Yellow: loop converged in 4-5 Rounds, or specific flags (no B-roll match, ambiguous take, SSD disconnected)
+- [x] Red: render failed, transcript unusable, Whisper confidence below threshold
 
 ### Queue & Batch Processing
 - [ ] Multiple Recordings can be queued for sequential overnight processing
