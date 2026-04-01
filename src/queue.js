@@ -13,14 +13,30 @@
  * - Target: 6-7 Recordings in a 10-hour overnight window (~85-100 min each)
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join, basename } from "node:path";
+import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
+import { join, basename, dirname } from "node:path";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 
 /**
  * Valid queue entry statuses.
  */
 export const QUEUE_STATUSES = ["ready", "processing", "done", "failed"];
+
+/**
+ * Valid status transitions.
+ */
+const VALID_TRANSITIONS = {
+  ready: ["processing", "failed"],
+  processing: ["done", "failed", "ready"],  // ready = crash recovery reset
+  done: ["ready"],                           // re-queue
+  failed: ["ready"],                         // retry
+};
+
+/**
+ * Allowed fields for extra merge in updateEntryStatus.
+ */
+const MERGEABLE_FIELDS = ["error", "confidenceTag", "phasesCompleted", "estimatedDuration"];
 
 /**
  * Default queue file path.
@@ -40,7 +56,7 @@ export function createQueueEntry(recordingPath, options = {}) {
   }
 
   return {
-    id: generateId(),
+    id: randomUUID(),
     recordingPath,
     recordingName: basename(recordingPath).replace(/\.[^.]+$/, ""),
     status: "ready",
@@ -55,13 +71,6 @@ export function createQueueEntry(recordingPath, options = {}) {
     estimatedDuration: null,
     actualDuration: null,
   };
-}
-
-/**
- * Generate a short unique ID for queue entries.
- */
-function generateId() {
-  return `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 /**
@@ -104,7 +113,7 @@ export function createEmptyQueue() {
 }
 
 /**
- * Save the queue to disk.
+ * Save the queue to disk atomically (write to temp, then rename).
  *
  * @param {Object} queue - Queue state
  * @param {string} queuePath - Path to queue JSON file
@@ -115,10 +124,14 @@ export async function saveQueue(queue, queuePath = DEFAULT_QUEUE_PATH) {
     throw new Error("Invalid queue state");
   }
 
-  await mkdir(join(queuePath, ".."), { recursive: true }).catch(() => {});
+  const dir = dirname(queuePath);
+  await mkdir(dir, { recursive: true }).catch(() => {});
   queue.metadata = queue.metadata || {};
   queue.metadata.lastUpdated = new Date().toISOString();
-  await writeFile(queuePath, JSON.stringify(queue, null, 2), "utf-8");
+
+  const tmpPath = queuePath + ".tmp";
+  await writeFile(tmpPath, JSON.stringify(queue, null, 2), "utf-8");
+  await rename(tmpPath, queuePath);
 }
 
 /**
@@ -148,7 +161,7 @@ export function addToQueue(queue, recordingPath, options = {}) {
 }
 
 /**
- * Get the next ready entry from the queue (highest priority first, then FIFO).
+ * Get the next ready entry from the queue (highest priority first, then FIFO by addedAt).
  *
  * @param {Object} queue - Queue state
  * @returns {Object|null} Next ready entry or null
@@ -158,18 +171,23 @@ export function getNextReady(queue) {
 
   const ready = queue.entries
     .filter(e => e.status === "ready")
-    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+    .sort((a, b) => {
+      const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      // FIFO tiebreaker by addedAt timestamp
+      return (a.addedAt || "").localeCompare(b.addedAt || "");
+    });
 
   return ready.length > 0 ? ready[0] : null;
 }
 
 /**
- * Update a queue entry's status.
+ * Update a queue entry's status with transition validation.
  *
  * @param {Object} queue - Queue state
  * @param {string} entryId - Entry ID
  * @param {string} newStatus - New status
- * @param {Object} extra - Additional fields to merge (error, confidenceTag, etc.)
+ * @param {Object} extra - Additional fields to merge (error, confidenceTag, phasesCompleted, estimatedDuration)
  * @returns {Object} Updated entry
  */
 export function updateEntryStatus(queue, entryId, newStatus, extra = {}) {
@@ -186,6 +204,12 @@ export function updateEntryStatus(queue, entryId, newStatus, extra = {}) {
     throw new Error(`Queue entry not found: ${entryId}`);
   }
 
+  // Validate status transition
+  const allowed = VALID_TRANSITIONS[entry.status];
+  if (allowed && !allowed.includes(newStatus)) {
+    throw new Error(`Invalid transition: ${entry.status} → ${newStatus}. Allowed: ${allowed.join(", ")}`);
+  }
+
   entry.status = newStatus;
 
   if (newStatus === "processing" && !entry.startedAt) {
@@ -199,14 +223,43 @@ export function updateEntryStatus(queue, entryId, newStatus, extra = {}) {
     }
   }
 
-  // Merge extra fields
+  // Reset fields when re-queuing
+  if (newStatus === "ready") {
+    entry.startedAt = null;
+    entry.completedAt = null;
+    entry.actualDuration = null;
+    entry.error = null;
+  }
+
+  // Merge only allowed extra fields
   for (const [key, value] of Object.entries(extra)) {
-    if (key !== "id" && key !== "status") {
+    if (MERGEABLE_FIELDS.includes(key)) {
       entry[key] = value;
     }
   }
 
   return entry;
+}
+
+/**
+ * Reset stale "processing" entries back to "ready" (crash recovery).
+ *
+ * @param {Object} queue - Queue state
+ * @returns {number} Number of entries reset
+ */
+export function resetStaleEntries(queue) {
+  if (!queue || !Array.isArray(queue.entries)) return 0;
+
+  let count = 0;
+  for (const entry of queue.entries) {
+    if (entry.status === "processing") {
+      entry.status = "ready";
+      entry.startedAt = null;
+      entry.error = null;
+      count++;
+    }
+  }
+  return count;
 }
 
 /**
@@ -311,6 +364,8 @@ export function formatQueueStatus(queue) {
  * This is the overnight runner. It processes one Recording at a time,
  * updating the queue after each step for crash recovery.
  *
+ * On startup, resets any entries stuck in "processing" (crash recovery).
+ *
  * @param {Object} options
  * @param {string} options.queuePath - Path to queue file
  * @param {Function} options.processRecording - async function(entry) that runs the full pipeline
@@ -336,7 +391,13 @@ export async function processQueue(options = {}) {
   let failed = 0;
   let skipped = 0;
 
-  const queue = await loadQueue(queuePath);
+  // Load queue and reset any stale "processing" entries (crash recovery)
+  let queue = await loadQueue(queuePath);
+  const resetCount = resetStaleEntries(queue);
+  if (resetCount > 0) {
+    await saveQueue(queue, queuePath);
+    if (onProgress) onProgress(null, "reset_stale", { count: resetCount });
+  }
 
   while (true) {
     // Check time limit
@@ -345,6 +406,9 @@ export async function processQueue(options = {}) {
       if (onProgress) onProgress(null, "time_limit_reached");
       break;
     }
+
+    // Re-load queue from disk before each iteration (supports concurrent adds)
+    queue = await loadQueue(queuePath);
 
     // Get next ready entry
     const entry = getNextReady(queue);
@@ -359,17 +423,32 @@ export async function processQueue(options = {}) {
     try {
       const result = await processRecording(entry);
 
-      updateEntryStatus(queue, entry.id, "done", {
-        confidenceTag: result?.confidenceTag ?? null,
-        phasesCompleted: result?.phasesCompleted ?? [],
-      });
+      // Re-load to merge any concurrent changes before updating
+      queue = await loadQueue(queuePath);
+      const freshEntry = queue.entries.find(e => e.id === entry.id);
+      if (freshEntry) {
+        freshEntry.status = "done";
+        freshEntry.completedAt = new Date().toISOString();
+        if (freshEntry.startedAt) {
+          freshEntry.actualDuration = (new Date(freshEntry.completedAt) - new Date(freshEntry.startedAt)) / 1000;
+        }
+        freshEntry.confidenceTag = result?.confidenceTag ?? null;
+        freshEntry.phasesCompleted = result?.phasesCompleted ?? [];
+      }
 
       processed++;
       if (onProgress) onProgress(entry, "completed");
     } catch (err) {
-      updateEntryStatus(queue, entry.id, "failed", {
-        error: err.message || String(err),
-      });
+      queue = await loadQueue(queuePath);
+      const freshEntry = queue.entries.find(e => e.id === entry.id);
+      if (freshEntry) {
+        freshEntry.status = "failed";
+        freshEntry.completedAt = new Date().toISOString();
+        if (freshEntry.startedAt) {
+          freshEntry.actualDuration = (new Date(freshEntry.completedAt) - new Date(freshEntry.startedAt)) / 1000;
+        }
+        freshEntry.error = err.message || String(err);
+      }
 
       failed++;
       if (onProgress) onProgress(entry, "failed");
@@ -381,5 +460,5 @@ export async function processQueue(options = {}) {
   // Count remaining
   skipped = queue.entries.filter(e => e.status === "ready").length;
 
-  return { processed, failed, skipped, queue };
+  return { processed, failed, skipped };
 }

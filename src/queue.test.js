@@ -16,6 +16,7 @@ import {
   addToQueue,
   getNextReady,
   updateEntryStatus,
+  resetStaleEntries,
   getQueueStats,
   formatQueueStatus,
   processQueue,
@@ -41,7 +42,7 @@ describe("createQueueEntry", () => {
     assert.equal(entry.status, "ready");
     assert.equal(entry.priority, 0);
     assert.equal(entry.brollLibraryPath, null);
-    assert.ok(entry.id.startsWith("q-"));
+    assert.ok(typeof entry.id === "string" && entry.id.length > 0);
     assert.ok(entry.addedAt);
     assert.equal(entry.startedAt, null);
     assert.equal(entry.completedAt, null);
@@ -134,6 +135,7 @@ describe("addToQueue", () => {
   it("allows re-adding a done recording", () => {
     const queue = createEmptyQueue();
     const entry = addToQueue(queue, "/recording.mp4");
+    updateEntryStatus(queue, entry.id, "processing");
     updateEntryStatus(queue, entry.id, "done");
 
     // Should not throw — re-queue a completed recording
@@ -216,6 +218,7 @@ describe("updateEntryStatus", () => {
     const queue = createEmptyQueue();
     const entry = addToQueue(queue, "/rec.mp4");
 
+    updateEntryStatus(queue, entry.id, "processing");
     updateEntryStatus(queue, entry.id, "done", {
       confidenceTag: "green",
       phasesCompleted: [1, 2, 3, 4, 5],
@@ -225,14 +228,16 @@ describe("updateEntryStatus", () => {
     assert.deepEqual(entry.phasesCompleted, [1, 2, 3, 4, 5]);
   });
 
-  it("does not overwrite id or status via extra", () => {
+  it("does not overwrite structural fields via extra", () => {
     const queue = createEmptyQueue();
     const entry = addToQueue(queue, "/rec.mp4");
     const originalId = entry.id;
 
-    updateEntryStatus(queue, entry.id, "done", { id: "hacked", status: "ready" });
+    updateEntryStatus(queue, entry.id, "processing");
+    updateEntryStatus(queue, entry.id, "done", { id: "hacked", status: "ready", recordingPath: "/evil" });
     assert.equal(entry.id, originalId);
     assert.equal(entry.status, "done");
+    assert.equal(entry.recordingPath, "/rec.mp4");
   });
 
   it("sets error on failure", () => {
@@ -277,6 +282,7 @@ describe("getQueueStats", () => {
     const e2 = addToQueue(queue, "/r2.mp4");
     addToQueue(queue, "/r3.mp4");
 
+    updateEntryStatus(queue, e1.id, "processing");
     updateEntryStatus(queue, e1.id, "done", { confidenceTag: "green" });
     updateEntryStatus(queue, e2.id, "failed", { error: "crash" });
 
@@ -305,6 +311,7 @@ describe("formatQueueStatus", () => {
     const e1 = addToQueue(queue, "/recording-1.mp4");
     const e2 = addToQueue(queue, "/recording-2.mp4");
 
+    updateEntryStatus(queue, e1.id, "processing");
     updateEntryStatus(queue, e1.id, "done", { confidenceTag: "green" });
 
     const result = formatQueueStatus(queue);
@@ -429,5 +436,115 @@ describe("processQueue", () => {
     assert.equal(events.length, 2);
     assert.equal(events[0].phase, "started");
     assert.equal(events[1].phase, "completed");
+  });
+});
+
+describe("adversarial — Codex-found edge cases", () => {
+  it("resetStaleEntries resets processing entries to ready (crash recovery)", () => {
+    const queue = createEmptyQueue();
+    const e1 = addToQueue(queue, "/rec1.mp4");
+    const e2 = addToQueue(queue, "/rec2.mp4");
+
+    updateEntryStatus(queue, e1.id, "processing");
+    // e2 stays ready
+
+    const resetCount = resetStaleEntries(queue);
+    assert.equal(resetCount, 1);
+    assert.equal(e1.status, "ready");
+    assert.equal(e1.startedAt, null);
+    assert.equal(e2.status, "ready");
+  });
+
+  it("resetStaleEntries returns 0 for clean queue", () => {
+    const queue = createEmptyQueue();
+    addToQueue(queue, "/rec.mp4");
+    assert.equal(resetStaleEntries(queue), 0);
+  });
+
+  it("processQueue resets stale entries on startup", async () => {
+    const queue = createEmptyQueue();
+    const e1 = addToQueue(queue, "/rec.mp4");
+    updateEntryStatus(queue, e1.id, "processing");
+
+    await saveQueue(queue, TEST_QUEUE_PATH);
+
+    const events = [];
+    await processQueue({
+      queuePath: TEST_QUEUE_PATH,
+      processRecording: async () => ({ confidenceTag: "green" }),
+      onProgress: (entry, phase, extra) => { events.push({ phase, extra }); },
+    });
+
+    // Should have reset the stale entry and then processed it
+    assert.ok(events.some(e => e.phase === "reset_stale"));
+    assert.ok(events.some(e => e.phase === "completed"));
+
+    const saved = await loadQueue(TEST_QUEUE_PATH);
+    assert.equal(saved.entries[0].status, "done");
+  });
+
+  it("updateEntryStatus rejects invalid transitions", () => {
+    const queue = createEmptyQueue();
+    const entry = addToQueue(queue, "/rec.mp4");
+
+    // ready -> done is not allowed (must go through processing)
+    assert.throws(
+      () => updateEntryStatus(queue, entry.id, "done"),
+      { message: /Invalid transition/ }
+    );
+  });
+
+  it("updateEntryStatus allows valid transition chain", () => {
+    const queue = createEmptyQueue();
+    const entry = addToQueue(queue, "/rec.mp4");
+
+    updateEntryStatus(queue, entry.id, "processing");
+    updateEntryStatus(queue, entry.id, "done");
+    assert.equal(entry.status, "done");
+
+    // Re-queue: done -> ready
+    updateEntryStatus(queue, entry.id, "ready");
+    assert.equal(entry.status, "ready");
+    assert.equal(entry.startedAt, null);
+    assert.equal(entry.completedAt, null);
+  });
+
+  it("updateEntryStatus only merges allowed extra fields", () => {
+    const queue = createEmptyQueue();
+    const entry = addToQueue(queue, "/rec.mp4");
+
+    updateEntryStatus(queue, entry.id, "processing");
+    updateEntryStatus(queue, entry.id, "done", {
+      confidenceTag: "green",
+      recordingPath: "/evil",  // should be ignored
+      startedAt: null,         // should be ignored
+    });
+
+    assert.equal(entry.confidenceTag, "green");
+    assert.equal(entry.recordingPath, "/rec.mp4");
+    assert.ok(entry.startedAt !== null);
+  });
+
+  it("createQueueEntry generates unique IDs", () => {
+    const ids = new Set();
+    for (let i = 0; i < 100; i++) {
+      ids.add(createQueueEntry(`/rec${i}.mp4`).id);
+    }
+    assert.equal(ids.size, 100, "All 100 IDs should be unique");
+  });
+
+  it("saveQueue uses atomic write (temp + rename)", async () => {
+    const queue = createEmptyQueue();
+    addToQueue(queue, "/rec.mp4");
+
+    await saveQueue(queue, TEST_QUEUE_PATH);
+
+    // Verify the file was written correctly
+    const content = await readFile(TEST_QUEUE_PATH, "utf-8");
+    const parsed = JSON.parse(content);
+    assert.equal(parsed.entries.length, 1);
+
+    // Verify no .tmp file left behind
+    assert.ok(!existsSync(TEST_QUEUE_PATH + ".tmp"));
   });
 });
