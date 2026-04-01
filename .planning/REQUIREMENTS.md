@@ -29,19 +29,19 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [x] Pipeline flags Yellow (not inserts irrelevant footage) when no suitable Match exists
 
 ### Captions (Transcreation)
-- [ ] Hindi/Hinglish speech is transcreated into natural English Captions preserving meaning and intent
-- [ ] English speech produces direct Captions from Transcript
-- [ ] Short Captions: full sentences, lower third, moderate size, always visible, no animation
-- [ ] Long-form Captions: smaller, bottom of screen, no animation
-- [ ] Two Caption presets available: white-on-black and black-on-white
-- [ ] Caption preset auto-selected by scene brightness (FFmpeg luminance analysis)
-- [ ] Creator can manually switch Caption preset per video
+- [x] Hindi/Hinglish speech is transcreated into natural English Captions preserving meaning and intent
+- [x] English speech produces direct Captions from Transcript
+- [x] Short Captions: full sentences, lower third, moderate size, always visible, no animation
+- [x] Long-form Captions: smaller, bottom of screen, no animation
+- [x] Two Caption presets available: white-on-black and black-on-white
+- [x] Caption preset auto-selected by scene brightness (FFmpeg luminance analysis)
+- [x] Creator can manually switch Caption preset per video
 
 ### Term Flashes
-- [ ] Technical and operative medical terms are identified from Transcript
-- [ ] Key claims and statistics are identified as emphasis points
-- [ ] Term Flashes appear on screen: clean sans-serif, white text, semi-transparent dark background, fade in/out 0.3s, hold 2-4 seconds
-- [ ] Term Flashes are positioned to avoid collision with Captions
+- [x] Technical and operative medical terms are identified from Transcript
+- [x] Key claims and statistics are identified as emphasis points
+- [x] Term Flashes appear on screen: clean sans-serif, white text, semi-transparent dark background, fade in/out 0.3s, hold 2-4 seconds
+- [x] Term Flashes are positioned to avoid collision with Captions
 
 ### Chapter Titles (Long-form only)
 - [ ] Chapter Title cards appear between Sections in Long-form videos

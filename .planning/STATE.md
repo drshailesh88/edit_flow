@@ -4,7 +4,7 @@
 **AI Video Editor Pipeline** — Created 2026-04-01
 
 ## Current Phase
-Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — Status: NOT STARTED
+Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — Status: IN PROGRESS (5/6 work units done, 1 remaining: Pipeline integration)
 
 ## Completed Phases
 - Phase 1: Tracer Bullet — Raw Recording to Silence-Removed MP4 — COMPLETE (2026-04-01)
@@ -22,7 +22,7 @@ Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — Status: NOT
 - Domain language: UBIQUITOUS_LANGUAGE.md
 
 ## Quick Reference
-- Next action: Start Phase 4 — build Captions and Term Flashes
+- Next action: Complete Phase 4 — Remotion Render + FFmpeg Composite Pipeline integration (1 remaining work unit)
 - Build command: `/sprint-build-perfect-v2 4`
 - Resume command: `/where-am-i`
 
