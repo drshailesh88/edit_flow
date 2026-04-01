@@ -23,6 +23,7 @@ const RemotionRoot = () => {
         defaultProps={{
           captions: [],
           termFlashes: [],
+          chapterTitles: [],
           captionPreset: "white-on-black",
           captionStyle: "short",
           videoWidth: 1920,
@@ -39,6 +40,7 @@ const RemotionRoot = () => {
         defaultProps={{
           captions: [],
           termFlashes: [],
+          chapterTitles: [],
           captionPreset: "white-on-black",
           captionStyle: "short",
           videoWidth: 1080,
