@@ -129,18 +129,18 @@ describe("runAdversarialLoop", () => {
 
   it("does not converge for a structurally broken manifest", async () => {
     const params = makeBadParams();
-    const result = await runAdversarialLoop(params, { skipAI: true, maxRounds: 3 });
+    const result = await runAdversarialLoop(params, { skipAI: true, defaultRounds: 3, maxRounds: 5 });
 
     assert.equal(result.converged, false);
     assert.equal(result.totalRounds, 3);
     assert.equal(result.history.length, 3);
   });
 
-  it("respects maxRounds limit", async () => {
+  it("respects defaultRounds as the active round limit", async () => {
     const params = makeBadParams();
-    const result = await runAdversarialLoop(params, { skipAI: true, maxRounds: 2 });
+    const result = await runAdversarialLoop(params, { skipAI: true, defaultRounds: 2, maxRounds: 5 });
 
-    assert.equal(result.totalRounds, 2);
+    assert.equal(result.totalRounds, 2, "Should use defaultRounds (2) not maxRounds (5)");
     assert.equal(result.history.length, 2);
   });
 
@@ -242,5 +242,42 @@ describe("assessConvergence", () => {
   it("returns 'slow' for 4+ round convergence", () => {
     assert.equal(assessConvergence({ converged: true, totalRounds: 4 }).quality, "slow");
     assert.equal(assessConvergence({ converged: true, totalRounds: 5 }).quality, "slow");
+  });
+
+  it("returns 'failed' for zero rounds (impossible state)", () => {
+    assert.equal(assessConvergence({ converged: true, totalRounds: 0 }).quality, "failed");
+  });
+});
+
+// ─────────────────────────────────────────────────────
+// ADVERSARIAL — Codex-found bugs
+// ─────────────────────────────────────────────────────
+
+describe("ADVERSARIAL — Codex-found bugs", () => {
+  it("uses defaultRounds (not maxRounds) as the active round limit", async () => {
+    const params = makeBadParams();
+    // defaultRounds=2, maxRounds=5 — should stop at 2, not 5
+    const result = await runAdversarialLoop(params, { skipAI: true, defaultRounds: 2, maxRounds: 5 });
+    assert.equal(result.totalRounds, 2, "defaultRounds should be the active limit");
+  });
+
+  it("terminal history entries have consistent schema", async () => {
+    const params = makeGoodParams();
+    const result = await runAdversarialLoop(params, { skipAI: true, maxRounds: 3 });
+
+    // Converged entry should have full resolution schema
+    const lastEntry = result.history[result.history.length - 1];
+    assert.ok("aiChanges" in lastEntry.resolution, "Terminal entry must include aiChanges");
+    assert.ok("issuesResolved" in lastEntry.resolution, "Terminal entry must include issuesResolved");
+    assert.ok("issuesRemaining" in lastEntry.resolution, "Terminal entry must include issuesRemaining");
+  });
+
+  it("max_rounds_reached entry has consistent schema", async () => {
+    const params = makeBadParams();
+    const result = await runAdversarialLoop(params, { skipAI: true, defaultRounds: 1, maxRounds: 1 });
+
+    const lastEntry = result.history[result.history.length - 1];
+    assert.ok("aiChanges" in lastEntry.resolution);
+    assert.ok("issuesRemaining" in lastEntry.resolution);
   });
 });

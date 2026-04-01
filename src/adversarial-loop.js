@@ -84,7 +84,10 @@ export async function runAdversarialLoop(params, options = {}) {
   let converged = false;
   let finalRound = 0;
 
-  for (let round = 1; round <= config.maxRounds; round++) {
+  // Use defaultRounds as the target, maxRounds as hard cap
+  const roundLimit = config.defaultRounds;
+
+  for (let round = 1; round <= roundLimit; round++) {
     finalRound = round;
 
     // Critic evaluates
@@ -109,14 +112,14 @@ export async function runAdversarialLoop(params, options = {}) {
     // Check convergence
     if (critique.passed) {
       converged = true;
-      roundEntry.resolution = { action: "converged", changes: 0 };
+      roundEntry.resolution = { action: "converged", changes: 0, aiChanges: 0, issuesResolved: 0, issuesRemaining: 0 };
       history.push(roundEntry);
       break;
     }
 
-    // If we've hit max rounds and still not converged, stop
-    if (round >= config.maxRounds) {
-      roundEntry.resolution = { action: "max_rounds_reached", changes: 0 };
+    // If we've hit the round limit and still not converged, stop
+    if (round >= roundLimit) {
+      roundEntry.resolution = { action: "max_rounds_reached", changes: 0, aiChanges: 0, issuesResolved: 0, issuesRemaining: critique.issues.length };
       history.push(roundEntry);
       break;
     }
@@ -191,7 +194,11 @@ export function assessConvergence(loopResult) {
     };
   }
 
-  if (loopResult.totalRounds <= 1) {
+  if (loopResult.totalRounds <= 0) {
+    return { quality: "failed", description: "No rounds executed" };
+  }
+
+  if (loopResult.totalRounds === 1) {
     return { quality: "fast", description: "Converged in 1 round — manifest passed initial review" };
   }
 
