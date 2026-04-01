@@ -228,7 +228,7 @@ export function deterministicCritique(manifest, transcript) {
  *
  * @param {Object} manifest - Manifest from editor agent
  * @param {Object} transcript - Original transcript
- * @param {Object} options - { editorialVoice, model, round }
+ * @param {Object} options - { editorialVoice, model, round, skipAI }
  * @returns {Promise<Object>} Critique result
  */
 export async function critiqueManifest(manifest, transcript, options = {}) {
@@ -236,6 +236,7 @@ export async function critiqueManifest(manifest, transcript, options = {}) {
     editorialVoice = DEFAULT_EDITORIAL_VOICE,
     model = "claude-sonnet-4-20250514",
     round = 1,
+    skipAI = false,
   } = options;
 
   // Phase 1: Deterministic checks (no API call)
@@ -248,6 +249,19 @@ export async function critiqueManifest(manifest, transcript, options = {}) {
       issues: deterministicIssues,
       passed: false,
       summary: "Critical structural issues found — fix before AI review",
+      round,
+    });
+  }
+
+  // If skipAI, return deterministic-only critique
+  if (skipAI) {
+    const hasMajor = deterministicIssues.filter(i => i.severity === "major").length > 0;
+    return validateCritique({
+      issues: deterministicIssues,
+      passed: deterministicIssues.length === 0 || (!hasMajor),
+      summary: deterministicIssues.length === 0
+        ? "No deterministic issues found"
+        : `${deterministicIssues.length} deterministic issue(s) found`,
       round,
     });
   }
