@@ -229,6 +229,23 @@ describe("Pipeline — filterEntriesForShort", () => {
     const result = filterEntriesForShort(bad, short);
     assert.equal(result.length, 0);
   });
+
+  it("should reject Phase 2 short objects that are missing original time bounds", () => {
+    const phase2Short = {
+      id: 1,
+      verticalPath: "/tmp/short-1.mp4",
+      duration: 18,
+      text: "assembled short",
+      confidence: 0.9,
+    };
+
+    const result = filterEntriesForShort(entries, phase2Short);
+    assert.equal(
+      result.length,
+      0,
+      "Phase 4 should not include every caption/flash when the short has no start/end timestamps"
+    );
+  });
 });
 
 describe("Pipeline — rebaseTimestamps", () => {
@@ -276,6 +293,41 @@ describe("Pipeline — rebaseTimestamps", () => {
     assert.equal(result[0].text, "Hello");
     assert.equal(result[0].type, "term");
     assert.equal(result[0].id, 1);
+  });
+
+  it("should reject Phase 2 short objects that are missing original time bounds", () => {
+    const entries = [{ id: 1, start: 12, end: 16, text: "Hello" }];
+    const phase2Short = {
+      id: 1,
+      verticalPath: "/tmp/short-1.mp4",
+      duration: 18,
+      text: "assembled short",
+      confidence: 0.9,
+    };
+
+    const result = rebaseTimestamps(entries, phase2Short);
+    assert.equal(
+      result.length,
+      0,
+      "Phase 4 should not emit invalid timestamps when the short has no start/end timestamps"
+    );
+  });
+
+  it("should clamp rebased timestamps to the assembled short duration when provided", () => {
+    const entries = [{ id: 1, start: 25, end: 28, text: "Late caption" }];
+    const assembledShort = {
+      id: 1,
+      start: 10,
+      end: 28,
+      duration: 4,
+    };
+
+    const result = rebaseTimestamps(entries, assembledShort);
+    assert.equal(
+      result[0].end,
+      4,
+      "Caption timing should not extend past the actual assembled short duration"
+    );
   });
 });
 

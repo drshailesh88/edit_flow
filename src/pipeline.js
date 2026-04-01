@@ -705,10 +705,12 @@ export async function runPhase4(recordingPath, options = {}) {
 export function filterEntriesForShort(entries, short) {
   if (!Array.isArray(entries) || !short) return [];
 
-  // Use the short's original transcript time range
-  // Entries with any overlap are included
-  const shortStart = short.start || 0;
-  const shortEnd = short.end || Infinity;
+  // Reject shorts without valid time bounds — Phase 2 assembled shorts
+  // may lack start/end if they came from a different data path
+  if (typeof short.start !== "number" || typeof short.end !== "number") return [];
+
+  const shortStart = short.start;
+  const shortEnd = short.end;
 
   return entries.filter(entry => {
     if (!entry || typeof entry.start !== "number" || typeof entry.end !== "number") return false;
@@ -727,8 +729,14 @@ export function filterEntriesForShort(entries, short) {
 export function rebaseTimestamps(entries, short) {
   if (!Array.isArray(entries) || !short) return [];
 
-  const offset = short.start || 0;
-  const shortDuration = (short.end || 0) - offset;
+  // Reject shorts without valid time bounds
+  if (typeof short.start !== "number" || typeof short.end !== "number") return [];
+
+  const offset = short.start;
+  // Use assembled duration if available (silence-cut shorts are shorter than end-start)
+  const shortDuration = (typeof short.duration === "number" && short.duration > 0)
+    ? short.duration
+    : short.end - offset;
 
   return entries.map(entry => ({
     ...entry,
