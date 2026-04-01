@@ -1,15 +1,16 @@
 /**
- * Pipeline Module — Phase 1 Tracer Bullet
+ * Pipeline Module — Phase 1 + Phase 2
  *
- * Connects Ingest → Take Selection → Assembler for end-to-end flow:
- * Raw Recording → silence-removed, best-take-selected, assembled MP4
+ * Phase 1: Ingest → Take Selection → Assembler (Long-form MP4)
+ * Phase 2: Shorts Extraction → Per-Short Assembly (7-8 Short MP4s)
  */
 
 import { ingest } from "./ingest.js";
 import { selectTakes } from "./take-selector.js";
 import { assembleFromSegments, getVideoDuration } from "./assembler.js";
+import { extractShortsFromTakes } from "./shorts-extractor.js";
 import { mkdir } from "node:fs/promises";
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 
 /**
@@ -160,18 +161,160 @@ export async function runPhase1(recordingPath, options = {}) {
   };
 }
 
+/**
+ * Phase 2 pipeline: Recording → 7-8 individual Short MP4s
+ *
+ * Can run standalone (re-ingests) or use Phase 1 output data.
+ *
+ * Steps:
+ * 1. Load or run ingest + take selection
+ * 2. Extract shorts (identify sections, validate duration)
+ * 3. Compute per-short speaking segments (intersection)
+ * 4. Assemble each short as an individual MP4
+ */
+export async function runPhase2(recordingPath, options = {}) {
+  const {
+    outputDir = "output",
+    dataDir = "data",
+    whisperModel = "medium",
+    language = null,
+    reusePhase1 = true,
+  } = options;
+
+  const shortsDir = join(outputDir, "shorts");
+  await mkdir(shortsDir, { recursive: true });
+
+  const recordingName = basename(recordingPath).replace(/\.[^.]+$/, "");
+
+  console.log("═══════════════════════════════════════");
+  console.log(`PHASE 2: Shorts Extraction`);
+  console.log(`Recording: ${basename(recordingPath)}`);
+  console.log("═══════════════════════════════════════\n");
+
+  // Step 1: Get transcript and take selection (reuse Phase 1 data if available)
+  let speakingSegments, takeResult, mediaInfo;
+
+  if (reusePhase1) {
+    try {
+      const transcriptPath = join(dataDir, `${recordingName}-transcript.json`);
+      const segmentsPath = join(dataDir, `${recordingName}-speaking-segments.json`);
+      const transcript = JSON.parse(await readFile(transcriptPath, "utf-8"));
+      speakingSegments = JSON.parse(await readFile(segmentsPath, "utf-8"));
+      mediaInfo = await import("./ingest.js").then(m => m.getMediaInfo(recordingPath));
+      takeResult = selectTakes(transcript);
+      console.log("  Reusing Phase 1 data from disk\n");
+    } catch {
+      console.log("  Phase 1 data not found, running ingest...\n");
+      reusePhase1 = false;
+    }
+  }
+
+  if (!reusePhase1) {
+    console.log("STEP 1: Ingest (transcribe + silence detection)");
+    console.log("─────────────────────────────────────");
+    const ingestResult = await ingest(recordingPath, dataDir, { whisperModel, language });
+    mediaInfo = ingestResult.mediaInfo;
+    speakingSegments = ingestResult.speakingSegments;
+    takeResult = selectTakes(ingestResult.transcript);
+  }
+
+  // Step 2: Extract shorts
+  console.log("STEP 2: Extract Shorts (identify sections)");
+  console.log("─────────────────────────────────────");
+  const shortsResult = extractShortsFromTakes(takeResult);
+
+  console.log(`  Sections found:   ${shortsResult.stats.totalSections}`);
+  console.log(`  Shorts to create: ${shortsResult.stats.totalShorts}`);
+  console.log(`  Green (< 60s):    ${shortsResult.stats.greenShorts}`);
+  console.log(`  Yellow (>= 60s):  ${shortsResult.stats.yellowShorts}`);
+  if (shortsResult.warnings.length > 0) {
+    for (const w of shortsResult.warnings) {
+      console.log(`  ⚠ ${w}`);
+    }
+  }
+
+  // Save shorts metadata
+  const shortsMetaPath = join(dataDir, `${recordingName}-shorts.json`);
+  await writeFile(shortsMetaPath, JSON.stringify(shortsResult, null, 2));
+
+  // Step 3: Assemble each short
+  console.log(`\nSTEP 3: Assemble ${shortsResult.shorts.length} Shorts`);
+  console.log("─────────────────────────────────────");
+
+  const assembledShorts = [];
+
+  for (const short of shortsResult.shorts) {
+    // Compute speaking segments for this short (intersection with speaking segments)
+    const shortSegments = computeFinalSegments(speakingSegments, [short]);
+
+    if (shortSegments.length === 0) {
+      console.log(`  Short ${short.id}: SKIPPED — no speaking segments overlap`);
+      continue;
+    }
+
+    const shortOutputPath = join(shortsDir, `${recordingName}-short-${short.id}.mp4`);
+
+    console.log(`  Short ${short.id}: ${short.duration.toFixed(1)}s — assembling...`);
+    await assembleFromSegments(recordingPath, shortSegments, shortOutputPath);
+
+    const actualDuration = await getVideoDuration(shortOutputPath);
+    assembledShorts.push({
+      id: short.id,
+      path: shortOutputPath,
+      duration: actualDuration,
+      text: short.text,
+      confidence: short.confidence,
+    });
+
+    console.log(`  Short ${short.id}: ${actualDuration.toFixed(1)}s → ${shortOutputPath}`);
+  }
+
+  console.log(`\n═══════════════════════════════════════`);
+  console.log(`PHASE 2 COMPLETE — ${assembledShorts.length} Shorts created`);
+  console.log("═══════════════════════════════════════");
+
+  const result = {
+    recordingPath,
+    shortsDir,
+    shortsCount: assembledShorts.length,
+    shorts: assembledShorts,
+    stats: shortsResult.stats,
+    warnings: shortsResult.warnings,
+  };
+
+  // Save final result
+  const resultPath = join(dataDir, `${recordingName}-phase2-result.json`);
+  await writeFile(resultPath, JSON.stringify(result, null, 2));
+
+  return result;
+}
+
 // CLI entry point
 if (process.argv[1] && process.argv[1].endsWith("pipeline.js") && process.argv[2]) {
-  const recordingPath = process.argv[2];
-  const model = process.argv[3] || "medium";
-  const language = process.argv[4] || null;
+  const phase = process.argv[2];
+  const recordingPath = process.argv[3];
+  const model = process.argv[4] || "medium";
+  const language = process.argv[5] || null;
 
-  runPhase1(recordingPath, { whisperModel: model, language })
-    .then((result) => {
-      console.log("\nResult:", JSON.stringify(result, null, 2));
-    })
-    .catch((err) => {
-      console.error("Pipeline error:", err.message);
-      process.exit(1);
-    });
+  if (phase === "1" || !recordingPath) {
+    // Phase 1 (or legacy: pipeline.js <recording>)
+    const path = recordingPath || phase;
+    runPhase1(path, { whisperModel: model, language })
+      .then((result) => {
+        console.log("\nResult:", JSON.stringify(result, null, 2));
+      })
+      .catch((err) => {
+        console.error("Pipeline error:", err.message);
+        process.exit(1);
+      });
+  } else if (phase === "2") {
+    runPhase2(recordingPath, { whisperModel: model, language })
+      .then((result) => {
+        console.log("\nResult:", JSON.stringify(result, null, 2));
+      })
+      .catch((err) => {
+        console.error("Pipeline error:", err.message);
+        process.exit(1);
+      });
+  }
 }
