@@ -12,5 +12,8 @@
   "keywords": [],
   "author": "",
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "better-sqlite3": "^12.8.0"
+  }
 }
