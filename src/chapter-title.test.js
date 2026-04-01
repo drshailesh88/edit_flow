@@ -155,4 +155,50 @@ describe("getActiveChapterTitle", () => {
     assert.equal(getActiveChapterTitle(null, 1), null);
     assert.equal(getActiveChapterTitle(titles, null), null);
   });
+
+  it("ignores malformed title entries instead of throwing", () => {
+    const malformedTitles = [
+      null,
+      { id: "chapter-1", start: 0, end: CHAPTER_TITLE_DURATION, text: "Introduction" },
+    ];
+    assert.doesNotThrow(() => getActiveChapterTitle(malformedTitles, 1));
+    assert.equal(getActiveChapterTitle(malformedTitles, 1).text, "Introduction");
+  });
+});
+
+describe("extractChapterTitles — adversarial edge cases", () => {
+  it("does not crash when invalid entries appear before the first valid section", () => {
+    const sections = [
+      null,
+      { id: 2, start: 10, end: 20, text: "2. Valid section", duration: 10 },
+    ];
+    assert.doesNotThrow(() => extractChapterTitles(sections));
+    const titles = extractChapterTitles(sections);
+    assert.equal(titles.length, 1);
+    assert.equal(titles[0].start, 0);
+    assert.equal(titles[0].text, "Valid section");
+  });
+
+  it("skips sections whose start time is NaN", () => {
+    const sections = [
+      { id: 1, start: NaN, end: 10, text: "1. Broken", duration: 10 },
+      { id: 2, start: 10, end: 20, text: "2. Good", duration: 10 },
+    ];
+    const titles = extractChapterTitles(sections);
+    assert.equal(titles.length, 1);
+    assert.equal(titles[0].id, "chapter-2");
+    assert.equal(titles[0].text, "Good");
+  });
+
+  it("does not emit non-finite chapter timing when a previous section has no numeric end", () => {
+    const sections = [
+      { id: 1, start: 0, end: undefined, text: "1. Missing end", duration: 10 },
+      { id: 2, start: 10, end: 20, text: "2. Valid", duration: 10 },
+    ];
+    const titles = extractChapterTitles(sections);
+    for (const t of titles) {
+      assert.equal(Number.isFinite(t.start), true);
+      assert.equal(Number.isFinite(t.end), true);
+    }
+  });
 });

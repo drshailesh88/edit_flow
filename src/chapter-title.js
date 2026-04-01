@@ -45,16 +45,25 @@ export function extractChapterTitles(sections) {
 
   const titles = [];
 
-  for (let i = 0; i < sections.length; i++) {
-    const section = sections[i];
-    if (!section || typeof section.start !== "number") continue;
+  // Filter to valid sections first, then compute titles based on valid ordering
+  const validSections = sections.filter(
+    s => s && typeof s.start === "number" && Number.isFinite(s.start)
+  );
 
+  for (let i = 0; i < validSections.length; i++) {
+    const section = validSections[i];
     const titleText = deriveTitle(section.text, section.id);
 
     // Chapter title appears just before the section starts.
     // For the first section, it starts at 0.
     // For subsequent sections, it appears at the end of the previous section.
-    const titleStart = i === 0 ? 0 : sections[i - 1].end;
+    let titleStart;
+    if (i === 0) {
+      titleStart = 0;
+    } else {
+      const prevEnd = validSections[i - 1].end;
+      titleStart = (typeof prevEnd === "number" && Number.isFinite(prevEnd)) ? prevEnd : section.start;
+    }
     const titleEnd = titleStart + CHAPTER_TITLE_DURATION;
 
     titles.push({
@@ -126,6 +135,7 @@ export function getActiveChapterTitle(chapterTitles, currentTime) {
   if (!Array.isArray(chapterTitles) || typeof currentTime !== "number") return null;
 
   for (const title of chapterTitles) {
+    if (!title) continue;
     if (currentTime >= title.start && currentTime < title.end) {
       return title;
     }
