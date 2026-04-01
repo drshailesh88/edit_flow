@@ -30,12 +30,16 @@ export async function analyzeBrightness(videoPath, options = {}) {
 
   const { sampleFrames = 30 } = options;
 
-  // Use FFmpeg signalstats to measure luminance across sampled frames
+  // Validate sampleFrames
+  if (typeof sampleFrames !== "number" || !Number.isInteger(sampleFrames) || sampleFrames < 1) {
+    throw new Error(`sampleFrames must be a positive integer, got ${sampleFrames}`);
+  }
+
+  // Use FFmpeg signalstats with metadata=print to output YAVG to stderr
   // -vf select='not(mod(n,N))' samples every Nth frame
-  // signalstats outputs YAVG (average Y luminance per frame)
   const { stderr } = await execFileAsync("ffmpeg", [
     "-i", videoPath,
-    "-vf", `select='not(mod(n\\,${sampleFrames}))',signalstats`,
+    "-vf", `select='not(mod(n\\,${sampleFrames}))',signalstats=stat=all:metadata=print`,
     "-f", "null",
     "-",
   ], { maxBuffer: 10 * 1024 * 1024 });
@@ -79,7 +83,7 @@ export function parseLuminanceFromStats(stderr) {
   if (!stderr || typeof stderr !== "string") return [];
 
   const values = [];
-  const regex = /YAVG:\s*([\d.]+)/g;
+  const regex = /(?<![A-Z])YAVG:\s*(\d+(?:\.\d+)?)\b/g;
   let match;
 
   while ((match = regex.exec(stderr)) !== null) {
@@ -110,7 +114,7 @@ export async function selectCaptionPreset(videoPath, options = {}) {
   const validPresets = ["white-on-black", "black-on-white"];
 
   // Priority 1: Manual override
-  if (manualPreset) {
+  if (manualPreset != null) {
     if (!validPresets.includes(manualPreset)) {
       throw new Error(`Invalid preset "${manualPreset}". Valid: ${validPresets.join(", ")}`);
     }
