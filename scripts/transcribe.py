@@ -17,12 +17,16 @@ def transcribe(file_path, model_name="medium", language=None):
     model = whisper.load_model(model_name)
 
     # word_timestamps=True gives us per-word timing
-    result = model.transcribe(
-        file_path,
-        language=language,
-        word_timestamps=True,
-        verbose=False,
-    )
+    # Suppress Whisper's own print statements by redirecting stderr
+    import io
+    import contextlib
+    with contextlib.redirect_stderr(io.StringIO()):
+        result = model.transcribe(
+            file_path,
+            language=language,
+            word_timestamps=True,
+            verbose=False,
+        )
 
     segments = []
     for seg in result["segments"]:

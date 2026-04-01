@@ -1,0 +1,489 @@
+{
+  "language": "en",
+  "segments": [
+    {
+      "start": 7.64,
+      "end": 10.44,
+      "text": "Are you?",
+      "words": [
+        {
+          "word": "Are",
+          "start": 7.64,
+          "end": 9.04
+        },
+        {
+          "word": "you?",
+          "start": 9.04,
+          "end": 10.44
+        }
+      ]
+    },
+    {
+      "start": 29.12,
+      "end": 34.32,
+      "text": "Are you unknowingly consuming toxic substances along with your protein shake?",
+      "words": [
+        {
+          "word": "Are",
+          "start": 29.12,
+          "end": 30.02
+        },
+        {
+          "word": "you",
+          "start": 30.02,
+          "end": 30.42
+        },
+        {
+          "word": "unknowingly",
+          "start": 30.42,
+          "end": 30.92
+        },
+        {
+          "word": "consuming",
+          "start": 30.92,
+          "end": 31.8
+        },
+        {
+          "word": "toxic",
+          "start": 31.8,
+          "end": 32.36
+        },
+        {
+          "word": "substances",
+          "start": 32.36,
+          "end": 32.88
+        },
+        {
+          "word": "along",
+          "start": 32.88,
+          "end": 33.26
+        },
+        {
+          "word": "with",
+          "start": 33.26,
+          "end": 33.44
+        },
+        {
+          "word": "your",
+          "start": 33.44,
+          "end": 33.66
+        },
+        {
+          "word": "protein",
+          "start": 33.66,
+          "end": 33.92
+        },
+        {
+          "word": "shake?",
+          "start": 33.92,
+          "end": 34.32
+        }
+      ]
+    },
+    {
+      "start": 43.72,
+      "end": 52.3,
+      "text": "Are you unknowingly consuming toxic chemicals along with your protein shake?",
+      "words": [
+        {
+          "word": "Are",
+          "start": 43.72,
+          "end": 44.52
+        },
+        {
+          "word": "you",
+          "start": 44.52,
+          "end": 44.96
+        },
+        {
+          "word": "unknowingly",
+          "start": 44.96,
+          "end": 49.32
+        },
+        {
+          "word": "consuming",
+          "start": 49.32,
+          "end": 49.94
+        },
+        {
+          "word": "toxic",
+          "start": 49.94,
+          "end": 50.34
+        },
+        {
+          "word": "chemicals",
+          "start": 50.34,
+          "end": 50.78
+        },
+        {
+          "word": "along",
+          "start": 50.78,
+          "end": 51.18
+        },
+        {
+          "word": "with",
+          "start": 51.18,
+          "end": 51.38
+        },
+        {
+          "word": "your",
+          "start": 51.38,
+          "end": 51.64
+        },
+        {
+          "word": "protein",
+          "start": 51.64,
+          "end": 51.86
+        },
+        {
+          "word": "shake?",
+          "start": 51.86,
+          "end": 52.3
+        }
+      ]
+    },
+    {
+      "start": 57.36,
+      "end": 61.6,
+      "text": "What if I told you that 69.4% of all protein supplements?",
+      "words": [
+        {
+          "word": "What",
+          "start": 57.06,
+          "end": 57.46
+        },
+        {
+          "word": "if",
+          "start": 57.46,
+          "end": 57.6
+        },
+        {
+          "word": "I",
+          "start": 57.6,
+          "end": 57.68
+        },
+        {
+          "word": "told",
+          "start": 57.68,
+          "end": 57.98
+        },
+        {
+          "word": "you",
+          "start": 57.98,
+          "end": 58.22
+        },
+        {
+          "word": "that",
+          "start": 58.22,
+          "end": 58.48
+        },
+        {
+          "word": "69",
+          "start": 58.48,
+          "end": 58.96
+        },
+        {
+          "word": ".4",
+          "start": 58.96,
+          "end": 59.76
+        },
+        {
+          "word": "%",
+          "start": 59.76,
+          "end": 60.08
+        },
+        {
+          "word": "of",
+          "start": 60.08,
+          "end": 60.32
+        },
+        {
+          "word": "all",
+          "start": 60.32,
+          "end": 60.64
+        },
+        {
+          "word": "protein",
+          "start": 60.64,
+          "end": 60.96
+        },
+        {
+          "word": "supplements?",
+          "start": 60.96,
+          "end": 61.6
+        }
+      ]
+    },
+    {
+      "start": 62.8,
+      "end": 74.98,
+      "text": "What if I told you that 69.4% of all protein supplements have misleading labels?",
+      "words": [
+        {
+          "word": "What",
+          "start": 62.8,
+          "end": 63.7
+        },
+        {
+          "word": "if",
+          "start": 63.7,
+          "end": 63.84
+        },
+        {
+          "word": "I",
+          "start": 63.84,
+          "end": 63.96
+        },
+        {
+          "word": "told",
+          "start": 63.96,
+          "end": 64.2
+        },
+        {
+          "word": "you",
+          "start": 64.2,
+          "end": 64.4
+        },
+        {
+          "word": "that",
+          "start": 64.4,
+          "end": 64.6
+        },
+        {
+          "word": "69",
+          "start": 64.6,
+          "end": 65.02
+        },
+        {
+          "word": ".4",
+          "start": 65.02,
+          "end": 65.7
+        },
+        {
+          "word": "%",
+          "start": 65.7,
+          "end": 66.18
+        },
+        {
+          "word": "of",
+          "start": 66.18,
+          "end": 66.18
+        },
+        {
+          "word": "all",
+          "start": 66.18,
+          "end": 66.58
+        },
+        {
+          "word": "protein",
+          "start": 66.58,
+          "end": 66.92
+        },
+        {
+          "word": "supplements",
+          "start": 66.92,
+          "end": 67.6
+        },
+        {
+          "word": "have",
+          "start": 67.6,
+          "end": 73.54
+        },
+        {
+          "word": "misleading",
+          "start": 73.54,
+          "end": 74.04
+        },
+        {
+          "word": "labels?",
+          "start": 74.04,
+          "end": 74.98
+        }
+      ]
+    },
+    {
+      "start": 81.92,
+      "end": 100.54,
+      "text": "Do you know that heavy metals like lead and arsenic can be in your favorite protein powder?",
+      "words": [
+        {
+          "word": "Do",
+          "start": 81.92,
+          "end": 82.68
+        },
+        {
+          "word": "you",
+          "start": 82.68,
+          "end": 83.44
+        },
+        {
+          "word": "know",
+          "start": 83.44,
+          "end": 83.66
+        },
+        {
+          "word": "that",
+          "start": 83.66,
+          "end": 83.86
+        },
+        {
+          "word": "heavy",
+          "start": 83.86,
+          "end": 84.12
+        },
+        {
+          "word": "metals",
+          "start": 84.12,
+          "end": 84.48
+        },
+        {
+          "word": "like",
+          "start": 84.48,
+          "end": 89.3
+        },
+        {
+          "word": "lead",
+          "start": 89.3,
+          "end": 91.2
+        },
+        {
+          "word": "and",
+          "start": 91.2,
+          "end": 91.54
+        },
+        {
+          "word": "arsenic",
+          "start": 91.54,
+          "end": 96.94
+        },
+        {
+          "word": "can",
+          "start": 96.94,
+          "end": 97.98
+        },
+        {
+          "word": "be",
+          "start": 97.98,
+          "end": 98.46
+        },
+        {
+          "word": "in",
+          "start": 98.46,
+          "end": 98.46
+        },
+        {
+          "word": "your",
+          "start": 98.46,
+          "end": 98.84
+        },
+        {
+          "word": "favorite",
+          "start": 98.84,
+          "end": 99.22
+        },
+        {
+          "word": "protein",
+          "start": 99.22,
+          "end": 99.58
+        },
+        {
+          "word": "powder?",
+          "start": 99.58,
+          "end": 100.54
+        }
+      ]
+    },
+    {
+      "start": 100.54,
+      "end": 110.76,
+      "text": "Do you know that heavy metals like lead and arsenic can be in your favorite protein shake?",
+      "words": [
+        {
+          "word": "Do",
+          "start": 100.54,
+          "end": 101.56
+        },
+        {
+          "word": "you",
+          "start": 101.56,
+          "end": 101.76
+        },
+        {
+          "word": "know",
+          "start": 101.76,
+          "end": 102.34
+        },
+        {
+          "word": "that",
+          "start": 102.34,
+          "end": 102.44
+        },
+        {
+          "word": "heavy",
+          "start": 102.44,
+          "end": 102.44
+        },
+        {
+          "word": "metals",
+          "start": 102.44,
+          "end": 102.44
+        },
+        {
+          "word": "like",
+          "start": 102.44,
+          "end": 102.44
+        },
+        {
+          "word": "lead",
+          "start": 102.44,
+          "end": 102.72
+        },
+        {
+          "word": "and",
+          "start": 102.72,
+          "end": 103.06
+        },
+        {
+          "word": "arsenic",
+          "start": 103.06,
+          "end": 107.76
+        },
+        {
+          "word": "can",
+          "start": 107.76,
+          "end": 109.22
+        },
+        {
+          "word": "be",
+          "start": 109.22,
+          "end": 109.48
+        },
+        {
+          "word": "in",
+          "start": 109.48,
+          "end": 109.48
+        },
+        {
+          "word": "your",
+          "start": 109.48,
+          "end": 109.66
+        },
+        {
+          "word": "favorite",
+          "start": 109.66,
+          "end": 110.1
+        },
+        {
+          "word": "protein",
+          "start": 110.1,
+          "end": 110.1
+        },
+        {
+          "word": "shake?",
+          "start": 110.1,
+          "end": 110.76
+        }
+      ]
+    }
+  ]
+}

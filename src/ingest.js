@@ -70,7 +70,7 @@ export async function extractAudio(videoPath, outputDir) {
  */
 export async function transcribe(filePath, options = {}) {
   const { model = "medium", language = null } = options;
-  const scriptPath = join(dirname(new URL(import.meta.url).pathname), "..", "scripts", "transcribe.py");
+  const scriptPath = join(decodeURIComponent(dirname(new URL(import.meta.url).pathname)), "..", "scripts", "transcribe.py");
 
   const args = ["python3", scriptPath, filePath, "--model", model];
   if (language) {
@@ -95,7 +95,14 @@ export async function transcribe(filePath, options = {}) {
         return;
       }
       try {
-        const transcript = JSON.parse(stdout);
+        // Whisper may print non-JSON lines before the JSON output
+        // Find the first '{' and parse from there
+        const jsonStart = stdout.indexOf("{");
+        if (jsonStart === -1) {
+          reject(new Error(`No JSON found in Whisper output: ${stdout.slice(0, 500)}`));
+          return;
+        }
+        const transcript = JSON.parse(stdout.slice(jsonStart));
         resolve(transcript);
       } catch (e) {
         reject(new Error(`Failed to parse Whisper output: ${e.message}\nOutput: ${stdout.slice(0, 500)}`));
