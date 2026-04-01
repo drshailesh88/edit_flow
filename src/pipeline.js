@@ -27,7 +27,8 @@ import { join, basename } from "node:path";
  * @returns {Array} [{start, end}] final segments for assembly
  */
 export function computeFinalSegments(speakingSegments, bestTakes) {
-  if (bestTakes.length === 0) return speakingSegments;
+  if (!speakingSegments) return [];
+  if (!bestTakes || bestTakes.length === 0) return speakingSegments.map(s => ({ ...s }));
 
   const final = [];
 
@@ -37,7 +38,7 @@ export function computeFinalSegments(speakingSegments, bestTakes) {
       const overlapStart = Math.max(speaking.start, take.start);
       const overlapEnd = Math.min(speaking.end, take.end);
 
-      if (overlapEnd - overlapStart > 0.1) {
+      if (overlapEnd - overlapStart >= 0.099) {
         final.push({ start: overlapStart, end: overlapEnd });
       }
     }

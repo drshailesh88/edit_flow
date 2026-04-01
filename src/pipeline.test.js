@@ -109,3 +109,75 @@ describe("Pipeline — language support", () => {
     // since it delegates to ingest() which already handles it
   });
 });
+
+// ── Adversarial tests: edge cases and bug exposure ──
+
+describe("Pipeline — adversarial: null/undefined inputs", () => {
+  it("should handle null speakingSegments gracefully", () => {
+    // If speakingSegments is null/undefined the function should not throw
+    assert.doesNotThrow(() => {
+      const result = computeFinalSegments(null, [{ start: 0, end: 10 }]);
+      assert.ok(Array.isArray(result));
+    });
+  });
+
+  it("should handle undefined speakingSegments gracefully", () => {
+    assert.doesNotThrow(() => {
+      const result = computeFinalSegments(undefined, []);
+      assert.ok(Array.isArray(result));
+    });
+  });
+
+  it("should handle null bestTakes gracefully", () => {
+    // bestTakes.length will throw TypeError if bestTakes is null
+    assert.doesNotThrow(() => {
+      const result = computeFinalSegments([{ start: 0, end: 10 }], null);
+      assert.ok(Array.isArray(result));
+    });
+  });
+
+  it("should handle undefined bestTakes gracefully", () => {
+    assert.doesNotThrow(() => {
+      const result = computeFinalSegments([{ start: 0, end: 10 }], undefined);
+      assert.ok(Array.isArray(result));
+    });
+  });
+});
+
+describe("Pipeline — adversarial: return value mutation safety", () => {
+  it("should not return the same array reference when bestTakes is empty", () => {
+    // BUG: when bestTakes is empty, the function does `return speakingSegments`
+    // which returns the original mutable reference. Callers who push/splice
+    // the result will corrupt the input array.
+    const speaking = [{ start: 0, end: 10 }, { start: 15, end: 25 }];
+    const result = computeFinalSegments(speaking, []);
+
+    // The result should be a copy, not the same reference
+    assert.notStrictEqual(result, speaking,
+      "computeFinalSegments should return a defensive copy, not the original array reference");
+  });
+});
+
+describe("Pipeline — adversarial: overlap threshold edge case", () => {
+  it("should keep segments with exactly 0.1s overlap", () => {
+    // The code uses `overlapEnd - overlapStart > 0.1` which excludes
+    // segments with exactly 0.1s of overlap. This causes content loss:
+    // a 100ms spoken segment inside a best take would be silently dropped.
+    const speaking = [{ start: 10.0, end: 10.1 }];
+    const bestTakes = [{ start: 0, end: 20, text: "full coverage" }];
+
+    const result = computeFinalSegments(speaking, bestTakes);
+    // A 100ms segment that is both spoken AND a best take should be kept
+    assert.equal(result.length, 1,
+      "A 0.1s segment fully inside a best take should not be dropped");
+  });
+});
+
+describe("Pipeline — adversarial: empty speakingSegments with bestTakes", () => {
+  it("should return empty array when speakingSegments is empty", () => {
+    const speaking = [];
+    const bestTakes = [{ start: 0, end: 10, text: "take" }];
+    const result = computeFinalSegments(speaking, bestTakes);
+    assert.equal(result.length, 0);
+  });
+});
