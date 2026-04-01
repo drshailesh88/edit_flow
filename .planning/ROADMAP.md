@@ -8,7 +8,7 @@
   - **Why first:** Proves the core architecture works end-to-end. Every other phase builds on this foundation. If Whisper can't handle Hinglish or 16GB is too tight, we find out here.
   - Risk: **HIGH** (Whisper memory on 16GB, Hindi/Hinglish accuracy, take detection quality)
 
-- [ ] Phase 2: Shorts Extraction — One Recording to 7-8 Standalone Shorts
+- [x] Phase 2: Shorts Extraction — One Recording to 7-8 Standalone Shorts
   - **Deliverable:** Pipeline produces 7-8 individual MP4s (one per Section) from a single Recording
   - **Requirements:** Shorts Extractor (Claude identifies Section boundaries), Auto-Reframe (16:9 → 9:16 face-centered crop), per-Short FFmpeg assembly
   - **Why second:** Shorts are the daily posting content. Getting these working unlocks the creator's core publishing cadence (1 short/day).

@@ -16,9 +16,9 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [x] All silence gaps beyond a threshold are removed from the final output
 
 ### Shorts Extraction
-- [ ] Numbered Section boundaries in the Transcript are identified and used to define 7-8 Shorts per Recording
-- [ ] Each Short contains exactly one complete standalone thought (one Section)
-- [ ] Each Short is <60 seconds
+- [x] Numbered Section boundaries in the Transcript are identified and used to define 7-8 Shorts per Recording
+- [x] Each Short contains exactly one complete standalone thought (one Section)
+- [x] Each Short is <60 seconds
 
 ### B-roll System
 - [ ] B-roll Library on SSD is indexed into a SQLite database with descriptions per clip
@@ -62,8 +62,8 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [ ] Pipeline runs sequentially to stay within 16GB
 
 ### Auto-Reframe
-- [ ] 16:9 Recordings are auto-reframed to 9:16 for Shorts using face-detection center crop
-- [ ] Creator's face stays centered in vertical format
+- [x] 16:9 Recordings are auto-reframed to 9:16 for Shorts using face-detection center crop
+- [x] Creator's face stays centered in vertical format
 
 ### Output
 - [ ] Every output (Long-form + each Short) produces both MP4 and FCP XML (xmeml)

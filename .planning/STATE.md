@@ -4,10 +4,11 @@
 **AI Video Editor Pipeline** — Created 2026-04-01
 
 ## Current Phase
-Phase 2: Shorts Extraction — 7-8 Standalone Shorts — Status: NOT STARTED
+Phase 3: B-roll Automation — Library Indexing and Placement — Status: NOT STARTED
 
 ## Completed Phases
 - Phase 1: Tracer Bullet — Raw Recording to Silence-Removed MP4 — COMPLETE (2026-04-01)
+- Phase 2: Shorts Extraction — 7-8 Standalone Shorts — COMPLETE (2026-04-01)
 
 ## Source Documents
 - PRD: .taskmaster/docs/prd.txt
@@ -20,8 +21,8 @@ Phase 2: Shorts Extraction — 7-8 Standalone Shorts — Status: NOT STARTED
 - Domain language: UBIQUITOUS_LANGUAGE.md
 
 ## Quick Reference
-- Next action: Start Phase 2 — build Shorts Extractor + Auto-Reframe
-- Build command: `/sprint-build-perfect-v2 2`
+- Next action: Start Phase 3 — build B-roll Automation
+- Build command: `/sprint-build-perfect-v2 3`
 - Resume command: `/where-am-i`
 
 ## Readiness Score
@@ -31,7 +32,7 @@ Phase 2: Shorts Extraction — 7-8 Standalone Shorts — Status: NOT STARTED
 | Phase | Title | Risk | Status |
 |-------|-------|------|--------|
 | 1 | Tracer Bullet — Recording to Silence-Removed MP4 | HIGH | COMPLETE |
-| 2 | Shorts Extraction — 7-8 Standalone Shorts | MEDIUM | NOT STARTED |
+| 2 | Shorts Extraction — 7-8 Standalone Shorts | MEDIUM | COMPLETE |
 | 3 | B-roll Automation — Library Indexing and Placement | MEDIUM | NOT STARTED |
 | 4 | Captions and Term Flashes — Remotion Overlay Pipeline | MEDIUM | NOT STARTED |
 | 5 | Adversarial Quality Loop — Editor/Critic/Resolver | HIGH | NOT STARTED |
