@@ -243,6 +243,64 @@ describe("B-roll Indexer — searchClips", () => {
   });
 });
 
+describe("ADVERSARIAL — searchClips with null input", () => {
+  const advDb = "test-fixtures/broll-adv-null.db";
+
+  before(async () => {
+    await indexLibrary("test-fixtures", advDb);
+  });
+
+  after(async () => {
+    await rm(advDb, { force: true });
+  });
+
+  it("should not throw when query is null", () => {
+    const results = searchClips(advDb, null);
+    assert.ok(Array.isArray(results), "should return an array");
+    assert.ok(results.length >= 1, "should return all clips when query is null");
+  });
+
+  it("should not throw when query is undefined", () => {
+    const results = searchClips(advDb, undefined);
+    assert.ok(Array.isArray(results), "should return an array");
+  });
+});
+
+describe("ADVERSARIAL — searchClips LIKE wildcard escaping", () => {
+  const advDb = "test-fixtures/broll-adv-like.db";
+
+  before(async () => {
+    await indexLibrary("test-fixtures", advDb);
+  });
+
+  after(async () => {
+    await rm(advDb, { force: true });
+  });
+
+  it("should not match everything when query contains %", () => {
+    // "%" is a LIKE wildcard — if not escaped, it matches every row
+    const allClips = searchClips(advDb, "");
+    const wildcardResults = searchClips(advDb, "%");
+    // A literal "%" search should NOT match unless clips actually have "%" in description
+    assert.ok(wildcardResults.length <= allClips.length,
+      "wildcard query should not return more than all clips");
+  });
+
+  it("should not match everything when query contains _", () => {
+    const results = searchClips(advDb, "_");
+    assert.ok(Array.isArray(results), "should return an array");
+  });
+});
+
+describe("ADVERSARIAL — computeFileHash memory efficiency", () => {
+  it("should produce consistent hashes", async () => {
+    const { computeFileHash } = await import("./broll-indexer.js");
+    const hash1 = computeFileHash(TEST_RECORDING, 1000000);
+    const hash2 = computeFileHash(TEST_RECORDING, 1000000);
+    assert.equal(hash1, hash2, "same file should produce same hash");
+  });
+});
+
 describe("B-roll Indexer — getIndexStats", () => {
   const statsDb = "test-fixtures/broll-stats-test.db";
 

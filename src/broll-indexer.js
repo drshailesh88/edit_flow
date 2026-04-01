@@ -19,7 +19,7 @@ import { promisify } from "node:util";
 import { readdir, stat, mkdir } from "node:fs/promises";
 import { join, dirname, extname, basename, relative } from "node:path";
 import { createHash } from "node:crypto";
-import { readFileSync, mkdirSync } from "node:fs";
+import { readFileSync, mkdirSync, openSync, readSync, closeSync } from "node:fs";
 
 const execFileAsync = promisify(execFile);
 
@@ -69,8 +69,16 @@ export function openDatabase(dbPath) {
  * @param {string} dirPath - Root directory to scan
  * @returns {AsyncGenerator<string>} Yields absolute paths to video files
  */
-export async function* scanDirectory(dirPath) {
+export async function* scanDirectory(dirPath, _visitedInodes = new Set()) {
   const entries = await readdir(dirPath, { withFileTypes: true });
+
+  // Track visited directories by inode to detect symlink loops
+  const dirStats = await stat(dirPath).catch(() => null);
+  if (dirStats) {
+    const inodeKey = `${dirStats.dev}:${dirStats.ino}`;
+    if (_visitedInodes.has(inodeKey)) return; // Symlink loop detected
+    _visitedInodes.add(inodeKey);
+  }
 
   for (const entry of entries) {
     const fullPath = join(dirPath, entry.name);
@@ -83,7 +91,7 @@ export async function* scanDirectory(dirPath) {
     if (!fileStats) continue;
 
     if (fileStats.isDirectory()) {
-      yield* scanDirectory(fullPath);
+      yield* scanDirectory(fullPath, _visitedInodes);
     } else if (fileStats.isFile()) {
       const ext = extname(entry.name).toLowerCase();
       if (VIDEO_EXTENSIONS.has(ext)) {
@@ -144,12 +152,16 @@ function parseFrameRate(rateStr) {
  */
 export function computeFileHash(filePath, fileSize) {
   const hash = createHash("sha256");
-  // Read first 1MB for fast hashing
-  const fd = readFileSync(filePath, {
-    length: Math.min(1024 * 1024, fileSize || Infinity),
-  });
-  // Use a Buffer slice since readFileSync with length option isn't standard
-  hash.update(fd.slice(0, 1024 * 1024));
+  // Read only first 1MB for fast hashing of large video files
+  const CHUNK = 1024 * 1024;
+  const buf = Buffer.allocUnsafe(Math.min(CHUNK, fileSize || CHUNK));
+  const fd = openSync(filePath, "r");
+  try {
+    const bytesRead = readSync(fd, buf, 0, buf.length, 0);
+    hash.update(buf.slice(0, bytesRead));
+  } finally {
+    closeSync(fd);
+  }
   hash.update(String(fileSize));
   return hash.digest("hex");
 }
@@ -321,14 +333,20 @@ export async function indexLibrary(libraryPath, dbPath, options = {}) {
 export function searchClips(dbPath, query) {
   const db = openDatabase(dbPath);
   try {
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const terms = (query || "").toLowerCase().split(/\s+/).filter(Boolean);
     if (terms.length === 0) {
       return db.prepare("SELECT * FROM clips ORDER BY filename").all();
     }
 
+    // Escape LIKE wildcards in user input (%, _)
+    const escapeLike = (s) => s.replace(/[%_]/g, "\\$&");
+
     // Match clips where description or tags contain ALL search terms
-    const conditions = terms.map(() => "(description LIKE ? OR tags LIKE ?)").join(" AND ");
-    const params = terms.flatMap(t => [`%${t}%`, `%${t}%`]);
+    const conditions = terms.map(() => "(description LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')").join(" AND ");
+    const params = terms.flatMap(t => {
+      const escaped = `%${escapeLike(t)}%`;
+      return [escaped, escaped];
+    });
 
     return db.prepare(`SELECT * FROM clips WHERE ${conditions} ORDER BY filename`).all(params);
   } finally {
