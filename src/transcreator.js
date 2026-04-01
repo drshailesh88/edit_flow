@@ -15,20 +15,21 @@ import Anthropic from "@anthropic-ai/sdk";
  * Trims whitespace, normalizes punctuation, ensures sentence casing.
  */
 export function cleanCaptionText(text) {
-  if (!text || typeof text !== "string") return "";
+  if (text == null || typeof text !== "string") return "";
 
   let cleaned = text.trim();
 
   // Remove leading/trailing whitespace and normalize internal whitespace
   cleaned = cleaned.replace(/\s+/g, " ");
 
+  // If no alphanumeric content remains, return empty
+  if (cleaned.length === 0 || !/[a-zA-Z0-9]/.test(cleaned)) return "";
+
   // Ensure first character is uppercase
-  if (cleaned.length > 0) {
-    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  }
+  cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 
   // Add period if no terminal punctuation
-  if (cleaned.length > 0 && !/[.!?]$/.test(cleaned)) {
+  if (!/[.!?]$/.test(cleaned)) {
     cleaned += ".";
   }
 
@@ -43,18 +44,24 @@ export function cleanCaptionText(text) {
  * @returns {Array} Caption entries with timing
  */
 export function captionsFromEnglish(segments) {
-  if (!segments || segments.length === 0) return [];
+  if (!Array.isArray(segments) || segments.length === 0) return [];
 
-  return segments.map((seg, index) => ({
-    id: index + 1,
-    start: seg.start,
-    end: seg.end,
-    text: cleanCaptionText(seg.text),
-    originalText: seg.text,
-    words: seg.words || [],
-    language: "en",
-    transcreated: false,
-  }));
+  return segments.map((seg, index) => {
+    const start = Math.max(0, Number(seg.start) || 0);
+    const end = Math.max(start, Number(seg.end) || 0);
+    const originalText = seg.text == null ? "" : String(seg.text);
+
+    return {
+      id: index + 1,
+      start,
+      end,
+      text: cleanCaptionText(originalText),
+      originalText,
+      words: seg.words || [],
+      language: "en",
+      transcreated: false,
+    };
+  });
 }
 
 /**
@@ -146,7 +153,7 @@ ${numberedSegments}`,
  * @returns {Promise<Object>} { captions: [...], stats: {...} }
  */
 export async function generateCaptions(transcript, options = {}) {
-  if (!transcript || !transcript.segments) {
+  if (!transcript || !Array.isArray(transcript.segments)) {
     return {
       captions: [],
       stats: { totalCaptions: 0, transcreatedCount: 0, directCount: 0, language: "unknown" },
@@ -154,7 +161,7 @@ export async function generateCaptions(transcript, options = {}) {
   }
 
   const language = (transcript.language || "en").toLowerCase();
-  const isHindi = language === "hi" || language === "hindi";
+  const isHindi = language === "hi" || language === "hindi" || language === "hinglish";
 
   let captions;
   if (isHindi) {
