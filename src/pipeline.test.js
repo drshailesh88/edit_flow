@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeFinalSegments } from "./pipeline.js";
+import { computeFinalSegments, filterEntriesForShort, rebaseTimestamps } from "./pipeline.js";
 
 describe("Pipeline — computeFinalSegments", () => {
   it("should return speaking segments when no best takes", () => {
@@ -179,5 +179,161 @@ describe("Pipeline — adversarial: empty speakingSegments with bestTakes", () =
     const bestTakes = [{ start: 0, end: 10, text: "take" }];
     const result = computeFinalSegments(speaking, bestTakes);
     assert.equal(result.length, 0);
+  });
+});
+
+// ── Phase 4 helper tests ──
+
+describe("Pipeline — filterEntriesForShort", () => {
+  const entries = [
+    { id: 1, start: 0, end: 5, text: "Before short" },
+    { id: 2, start: 10, end: 15, text: "Inside short start" },
+    { id: 3, start: 18, end: 22, text: "Inside short middle" },
+    { id: 4, start: 25, end: 30, text: "Crosses short end" },
+    { id: 5, start: 35, end: 40, text: "After short" },
+  ];
+  const short = { start: 10, end: 28, id: 1, duration: 18 };
+
+  it("should include entries fully inside the short", () => {
+    const result = filterEntriesForShort(entries, short);
+    const ids = result.map((e) => e.id);
+    assert.ok(ids.includes(2));
+    assert.ok(ids.includes(3));
+  });
+
+  it("should include entries that cross the short boundary", () => {
+    const result = filterEntriesForShort(entries, short);
+    const ids = result.map((e) => e.id);
+    assert.ok(ids.includes(4), "Entry crossing end boundary should be included");
+  });
+
+  it("should exclude entries fully outside the short", () => {
+    const result = filterEntriesForShort(entries, short);
+    const ids = result.map((e) => e.id);
+    assert.ok(!ids.includes(1), "Entry before short should be excluded");
+    assert.ok(!ids.includes(5), "Entry after short should be excluded");
+  });
+
+  it("should handle empty entries array", () => {
+    const result = filterEntriesForShort([], short);
+    assert.equal(result.length, 0);
+  });
+
+  it("should handle null short", () => {
+    const result = filterEntriesForShort(entries, null);
+    assert.equal(result.length, 0);
+  });
+
+  it("should handle malformed entries", () => {
+    const bad = [null, undefined, { id: 1 }, { start: "x", end: 5 }];
+    const result = filterEntriesForShort(bad, short);
+    assert.equal(result.length, 0);
+  });
+
+  it("should reject Phase 2 short objects that are missing original time bounds", () => {
+    const phase2Short = {
+      id: 1,
+      verticalPath: "/tmp/short-1.mp4",
+      duration: 18,
+      text: "assembled short",
+      confidence: 0.9,
+    };
+
+    const result = filterEntriesForShort(entries, phase2Short);
+    assert.equal(
+      result.length,
+      0,
+      "Phase 4 should not include every caption/flash when the short has no start/end timestamps"
+    );
+  });
+});
+
+describe("Pipeline — rebaseTimestamps", () => {
+  const short = { start: 10, end: 28, id: 1, duration: 18 };
+
+  it("should rebase timestamps to start from 0", () => {
+    const entries = [
+      { id: 1, start: 12, end: 16, text: "Hello" },
+      { id: 2, start: 20, end: 25, text: "World" },
+    ];
+    const result = rebaseTimestamps(entries, short);
+    assert.equal(result[0].start, 2); // 12 - 10
+    assert.equal(result[0].end, 6); // 16 - 10
+    assert.equal(result[1].start, 10); // 20 - 10
+    assert.equal(result[1].end, 15); // 25 - 10
+  });
+
+  it("should clamp timestamps to short duration", () => {
+    const entries = [{ id: 1, start: 25, end: 35, text: "Crosses end" }];
+    const result = rebaseTimestamps(entries, short);
+    assert.equal(result[0].start, 15); // 25 - 10
+    assert.equal(result[0].end, 18); // clamped to shortDuration (28-10=18)
+  });
+
+  it("should clamp negative start to 0", () => {
+    const entries = [{ id: 1, start: 8, end: 14, text: "Before start" }];
+    const result = rebaseTimestamps(entries, short);
+    assert.equal(result[0].start, 0); // max(0, 8-10) = 0
+    assert.equal(result[0].end, 4); // 14 - 10
+  });
+
+  it("should handle empty entries array", () => {
+    const result = rebaseTimestamps([], short);
+    assert.equal(result.length, 0);
+  });
+
+  it("should handle null short", () => {
+    const result = rebaseTimestamps([{ start: 5, end: 10 }], null);
+    assert.equal(result.length, 0);
+  });
+
+  it("should preserve non-timestamp fields", () => {
+    const entries = [{ id: 1, start: 12, end: 16, text: "Hello", type: "term" }];
+    const result = rebaseTimestamps(entries, short);
+    assert.equal(result[0].text, "Hello");
+    assert.equal(result[0].type, "term");
+    assert.equal(result[0].id, 1);
+  });
+
+  it("should reject Phase 2 short objects that are missing original time bounds", () => {
+    const entries = [{ id: 1, start: 12, end: 16, text: "Hello" }];
+    const phase2Short = {
+      id: 1,
+      verticalPath: "/tmp/short-1.mp4",
+      duration: 18,
+      text: "assembled short",
+      confidence: 0.9,
+    };
+
+    const result = rebaseTimestamps(entries, phase2Short);
+    assert.equal(
+      result.length,
+      0,
+      "Phase 4 should not emit invalid timestamps when the short has no start/end timestamps"
+    );
+  });
+
+  it("should clamp rebased timestamps to the assembled short duration when provided", () => {
+    const entries = [{ id: 1, start: 25, end: 28, text: "Late caption" }];
+    const assembledShort = {
+      id: 1,
+      start: 10,
+      end: 28,
+      duration: 4,
+    };
+
+    const result = rebaseTimestamps(entries, assembledShort);
+    assert.equal(
+      result[0].end,
+      4,
+      "Caption timing should not extend past the actual assembled short duration"
+    );
+  });
+});
+
+describe("Pipeline — Phase 4 exports", () => {
+  it("should export runPhase4", async () => {
+    const { runPhase4 } = await import("./pipeline.js");
+    assert.ok(typeof runPhase4 === "function");
   });
 });
