@@ -41,13 +41,20 @@ export function identifySections(bestTakes) {
   // The simplest and most robust approach: each best take IS a Section.
   // This maps 1:1 with the domain model where each Section = one complete thought.
 
-  const sections = bestTakes.map((take, index) => ({
-    id: index + 1,
-    start: take.start,
-    end: take.end,
-    text: take.text,
-    duration: take.end - take.start,
-  }));
+  const sections = [];
+  let sectionIndex = 0;
+
+  for (const take of bestTakes) {
+    if (!take || typeof take.start !== "number" || typeof take.end !== "number") continue;
+    sectionIndex++;
+    sections.push({
+      id: sectionIndex,
+      start: take.start,
+      end: take.end,
+      text: take.text || "",
+      duration: take.end - take.start,
+    });
+  }
 
   return sections;
 }
@@ -62,8 +69,8 @@ export function identifySections(bestTakes) {
  * @param {Object} options - { maxDuration }
  * @returns {Object} { shorts: [...], warnings: [...] }
  */
-export function extractShorts(sections, options = {}) {
-  const { maxDuration = MAX_SHORT_DURATION } = options;
+export function extractShorts(sections, options) {
+  const { maxDuration = MAX_SHORT_DURATION } = options || {};
 
   if (!sections || sections.length === 0) {
     return { shorts: [], warnings: ["No sections found in transcript"] };
@@ -86,8 +93,9 @@ export function extractShorts(sections, options = {}) {
     };
 
     if (duration > maxDuration) {
+      const textPreview = section.text ? section.text.slice(0, 50) : "(no text)";
       warnings.push(
-        `Short ${section.id} exceeds ${maxDuration}s limit: ${duration.toFixed(1)}s — "${section.text.slice(0, 50)}..."`
+        `Short ${section.id} exceeds ${maxDuration}s limit: ${duration.toFixed(1)}s — "${textPreview}..."`
       );
     }
 
@@ -107,7 +115,8 @@ export function extractShorts(sections, options = {}) {
  * @param {Object} options - { maxDuration }
  * @returns {Object} { shorts, sections, warnings, stats }
  */
-export function extractShortsFromTakes(takeResult, options = {}) {
+export function extractShortsFromTakes(takeResult, options) {
+  if (!takeResult) return { shorts: [], sections: [], warnings: ["No take result provided"], stats: { totalSections: 0, totalShorts: 0, greenShorts: 0, yellowShorts: 0, totalDuration: 0, avgDuration: 0, longestShort: 0, shortestShort: 0 } };
   const bestTakes = takeResult.bestTakes || [];
 
   // Step 1: Identify section boundaries

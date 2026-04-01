@@ -252,3 +252,56 @@ describe("Shorts Extractor — adversarial: duration edge cases", () => {
     assert.equal(result.stats.totalShorts, 20);
   });
 });
+
+describe("Shorts Extractor — adversarial: Codex-found bugs", () => {
+  it("identifySections should skip null entries in bestTakes array", () => {
+    assert.doesNotThrow(() => {
+      const sections = identifySections([null, { start: 10, end: 20, text: "Valid" }]);
+      assert.equal(sections.length, 1);
+      assert.equal(sections[0].start, 10);
+    });
+  });
+
+  it("identifySections should skip malformed entries without start/end", () => {
+    assert.doesNotThrow(() => {
+      const sections = identifySections([{ text: "No timestamps" }, { start: 5, end: 15, text: "Good" }]);
+      assert.equal(sections.length, 1);
+    });
+  });
+
+  it("extractShorts should handle null options", () => {
+    assert.doesNotThrow(() => {
+      const { shorts } = extractShorts([{ id: 1, start: 0, end: 15, text: "Valid", duration: 15 }], null);
+      assert.equal(shorts.length, 1);
+    });
+  });
+
+  it("extractShorts should handle overlong section with missing text", () => {
+    assert.doesNotThrow(() => {
+      const { shorts, warnings } = extractShorts([{ id: 1, start: 0, end: 61, duration: 61 }]);
+      assert.equal(shorts.length, 1);
+      assert.equal(shorts[0].confidence, "yellow");
+      assert.ok(warnings[0].includes("(no text)"));
+    });
+  });
+
+  it("extractShortsFromTakes should handle null takeResult", () => {
+    assert.doesNotThrow(() => {
+      const result = extractShortsFromTakes(null);
+      assert.equal(result.shorts.length, 0);
+      assert.ok(result.warnings.length > 0);
+    });
+  });
+
+  it("extractShortsFromTakes should handle null options", () => {
+    const takeResult = {
+      bestTakes: [{ start: 0, end: 30, text: "Valid" }],
+      discarded: [],
+      stats: {},
+    };
+    assert.doesNotThrow(() => {
+      const result = extractShortsFromTakes(takeResult, null);
+      assert.equal(result.shorts.length, 1);
+    });
+  });
+});
