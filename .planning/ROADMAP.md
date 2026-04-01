@@ -20,7 +20,7 @@
   - **Why third:** B-roll is the biggest time sink in manual editing. Automating it is the highest-value feature after basic cuts.
   - Risk: **MEDIUM** (match quality depends on index descriptions, B-roll timing at natural transitions)
 
-- [ ] Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline
+- [x] Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline
   - **Deliverable:** Videos have English transcreated Captions and Term Flash overlays rendered as transparent ProRes overlays composited by FFmpeg
   - **Requirements:** Transcreator (Hindi/Hinglish → English), Term Identifier (medical terms + emphasis points), Remotion Overlay Renderer (Caption component with 2 presets + TermFlash component), FFmpeg composite, auto-brightness Caption style selection, brand theming (ThemeProvider)
   - **Why fourth:** Captions are table stakes for social media. Term Flashes differentiate from generic content. Remotion is introduced here (not earlier) because simpler phases validate the core pipeline first.

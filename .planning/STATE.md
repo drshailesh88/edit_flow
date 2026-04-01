@@ -4,12 +4,13 @@
 **AI Video Editor Pipeline** — Created 2026-04-01
 
 ## Current Phase
-Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — Status: IN PROGRESS (5/6 work units done, 1 remaining: Pipeline integration)
+Phase 5: Adversarial Quality Loop — Editor/Critic/Resolver — Status: NOT STARTED
 
 ## Completed Phases
 - Phase 1: Tracer Bullet — Raw Recording to Silence-Removed MP4 — COMPLETE (2026-04-01)
 - Phase 2: Shorts Extraction — 7-8 Standalone Shorts — COMPLETE (2026-04-01)
 - Phase 3: B-roll Automation — Library Indexing and Placement — COMPLETE (2026-04-01)
+- Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — COMPLETE (2026-04-01)
 
 ## Source Documents
 - PRD: .taskmaster/docs/prd.txt
@@ -22,8 +23,8 @@ Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — Status: IN 
 - Domain language: UBIQUITOUS_LANGUAGE.md
 
 ## Quick Reference
-- Next action: Complete Phase 4 — Remotion Render + FFmpeg Composite Pipeline integration (1 remaining work unit)
-- Build command: `/sprint-build-perfect-v2 4`
+- Next action: Start Phase 5 — Adversarial Quality Loop (Editor/Critic/Resolver)
+- Build command: `/sprint-build-perfect-v2 5`
 - Resume command: `/where-am-i`
 
 ## Readiness Score
@@ -35,7 +36,7 @@ Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — Status: IN 
 | 1 | Tracer Bullet — Recording to Silence-Removed MP4 | HIGH | COMPLETE |
 | 2 | Shorts Extraction — 7-8 Standalone Shorts | MEDIUM | COMPLETE |
 | 3 | B-roll Automation — Library Indexing and Placement | MEDIUM | COMPLETE |
-| 4 | Captions and Term Flashes — Remotion Overlay Pipeline | MEDIUM | NOT STARTED |
+| 4 | Captions and Term Flashes — Remotion Overlay Pipeline | MEDIUM | COMPLETE |
 | 5 | Adversarial Quality Loop — Editor/Critic/Resolver | HIGH | NOT STARTED |
 | 6 | Overnight Batch Processing — Queue and Multi-Recording | LOW | NOT STARTED |
 | 7 | Brand Profiles and Editorial Voice — Multi-Business Support | LOW | NOT STARTED |

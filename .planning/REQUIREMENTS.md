@@ -55,11 +55,11 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [ ] Critic evaluates Manifest JSON + Transcript only (no rendered preview per Round)
 
 ### Rendering (Track A)
-- [ ] Remotion renders Captions + Term Flashes + Chapter Titles as transparent ProRes 4444 overlay
-- [ ] FFmpeg assembles A-roll cuts, B-roll insertions, and Remotion overlay into final MP4
-- [ ] Audio is normalized (loudnorm)
-- [ ] Only 1 Remotion render runs at a time (mutex)
-- [ ] Pipeline runs sequentially to stay within 16GB
+- [x] Remotion renders Captions + Term Flashes + Chapter Titles as transparent ProRes 4444 overlay
+- [x] FFmpeg assembles A-roll cuts, B-roll insertions, and Remotion overlay into final MP4
+- [x] Audio is normalized (loudnorm)
+- [x] Only 1 Remotion render runs at a time (mutex)
+- [x] Pipeline runs sequentially to stay within 16GB
 
 ### Auto-Reframe
 - [x] 16:9 Recordings are auto-reframed to 9:16 for Shorts using face-detection center crop
