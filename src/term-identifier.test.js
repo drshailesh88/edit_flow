@@ -235,3 +235,120 @@ describe("extractTermFlashes", () => {
     assert.equal(typeof result.stats.claims, "number");
   });
 });
+
+// ============================================================
+// ADVERSARIAL TESTS — Exposing bugs in term-identifier.js
+// ============================================================
+
+describe("ADVERSARIAL: resolveTermTiming", () => {
+  it("BUG: crashes when words array contains null entries", () => {
+    const segment = {
+      start: 5.0,
+      end: 15.0,
+      text: "test words",
+      words: [null, { word: "test", start: 5.5, end: 6.0 }],
+    };
+    // Should not throw, but the code does w.word on null
+    assert.doesNotThrow(() => {
+      resolveTermTiming(segment, "test", "test");
+    });
+  });
+
+  it("BUG: returns NaN timestamps when segment.end is undefined", () => {
+    const segment = { start: 5.0, text: "hello world", words: [] };
+    // segment.end is undefined — fallback centering does (undefined - 5.0) = NaN
+    const timing = resolveTermTiming(segment, "hello", "hello");
+    assert.ok(!Number.isNaN(timing.start), `start should not be NaN, got ${timing.start}`);
+    assert.ok(!Number.isNaN(timing.end), `end should not be NaN, got ${timing.end}`);
+  });
+
+  it("BUG: returns NaN when matched word has no start timestamp", () => {
+    const segment = {
+      start: 5.0,
+      end: 15.0,
+      text: "protein",
+      words: [{ word: "protein" }], // missing start property
+    };
+    const timing = resolveTermTiming(segment, "protein", "protein");
+    assert.ok(!Number.isNaN(timing.start), `start should not be NaN, got ${timing.start}`);
+    assert.ok(!Number.isNaN(timing.end), `end should not be NaN, got ${timing.end}`);
+  });
+
+  it("BUG: returns NaN with segment.end undefined and word match found", () => {
+    const segment = {
+      start: 5.0,
+      // end is undefined
+      text: "test",
+      words: [{ word: "test", start: 5.5, end: 6.0 }],
+    };
+    const timing = resolveTermTiming(segment, "test", "test");
+    // Math.min(undefined, ...) = NaN
+    assert.ok(!Number.isNaN(timing.end), `end should not be NaN, got ${timing.end}`);
+  });
+
+  it("BUG: inverted segment (end < start) produces wrong timing", () => {
+    const segment = { start: 20.0, end: 10.0, text: "inverted", words: [] };
+    const timing = resolveTermTiming(segment, "inverted", "inverted");
+    // segDuration = -10, so flashStart = 20 + (-10 - 3)/2 = 20 - 6.5 = 13.5
+    // That is BEFORE segment.start=20, which is wrong
+    // With inverted segment (start=20, end=10), segDuration=-10
+    // segDuration <= 3 is false (since -10 is not <= 3... wait, -10 IS <= 3)
+    // Actually -10 <= 3 is TRUE, so it takes the short-segment branch
+    // Returns {start: 20, end: 10} — which means end < start!
+    assert.ok(timing.end >= timing.start, `end (${timing.end}) must be >= start (${timing.start}), but inverted segment produces inverted timing`);
+  });
+});
+
+describe("ADVERSARIAL: identifyTerms", () => {
+  it("BUG: crashes when segment has undefined start", async () => {
+    const segments = [{ text: "test segment", end: 5.0, words: [] }];
+    // seg.start.toFixed(2) will throw TypeError
+    try {
+      await identifyTerms(segments);
+      // If it doesn't throw, that's fine too — but it WILL throw
+    } catch (err) {
+      assert.ok(
+        err instanceof TypeError,
+        `Expected TypeError for undefined start, got ${err.constructor.name}: ${err.message}`
+      );
+      // This IS a bug: should validate or handle gracefully, not crash
+      assert.fail("identifyTerms should not throw on malformed segments — it should skip or return empty");
+    }
+  });
+
+
+});
+
+describe("ADVERSARIAL: parseTermResponse", () => {
+  it("BUG: does not strip code fences with trailing content after closing fence", () => {
+    // Claude sometimes adds text after the closing fence
+    const input = '```json\n[{"segmentIndex": 1, "text": "term", "type": "term"}]\n```\nHere are the results.';
+    const result = parseTermResponse(input);
+    // The closing ``` regex uses $ which won't match if there's trailing text
+    assert.equal(result.length, 1, `Should parse despite trailing text, got ${result.length} items`);
+  });
+
+  it("rejects segmentIndex of 0 (1-based indexing)", () => {
+    const input = JSON.stringify([
+      { segmentIndex: 0, text: "zero indexed", type: "term", startWord: "zero" },
+    ]);
+    const result = parseTermResponse(input);
+    assert.equal(result.length, 0, "segmentIndex 0 should be rejected (1-based indexing)");
+  });
+
+  it("rejects negative segmentIndex", () => {
+    const input = JSON.stringify([
+      { segmentIndex: -5, text: "negative", type: "term", startWord: "negative" },
+    ]);
+    const result = parseTermResponse(input);
+    assert.equal(result.length, 0, "negative segmentIndex should be rejected");
+  });
+
+  it("accepts NaN segmentIndex", () => {
+    // JSON doesn't have NaN, so this can't happen via JSON.parse. Skip.
+  });
+
+  it("accepts Infinity segmentIndex", () => {
+    // JSON doesn't have Infinity either. Skip.
+  });
+});

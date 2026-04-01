@@ -35,7 +35,13 @@ export async function identifyTerms(segments, options = {}) {
   for (let i = 0; i < segments.length; i += batchSize) {
     const batch = segments.slice(i, i + batchSize);
 
-    const segmentText = batch
+    // Filter out malformed segments (missing start/end)
+    const validBatch = batch.filter(
+      seg => seg && typeof seg.start === "number" && typeof seg.end === "number"
+    );
+    if (validBatch.length === 0) continue;
+
+    const segmentText = validBatch
       .map((seg, idx) => `[${idx + 1}] (${seg.start.toFixed(2)}s - ${seg.end.toFixed(2)}s) ${seg.text}`)
       .join("\n");
 
@@ -72,9 +78,9 @@ ${segmentText}`,
 
     for (const item of items) {
       const segIdx = item.segmentIndex - 1;
-      if (segIdx < 0 || segIdx >= batch.length) continue;
+      if (segIdx < 0 || segIdx >= validBatch.length) continue;
 
-      const seg = batch[segIdx];
+      const seg = validBatch[segIdx];
       const timing = resolveTermTiming(seg, item.startWord, item.text);
 
       termFlashes.push({
@@ -105,7 +111,7 @@ export function parseTermResponse(responseText) {
 
   // Strip markdown code fences if present
   if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+    text = text.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```[\s\S]*$/, "");
   }
 
   try {
@@ -115,6 +121,8 @@ export function parseTermResponse(responseText) {
       item =>
         item &&
         typeof item.segmentIndex === "number" &&
+        item.segmentIndex >= 1 &&
+        Number.isFinite(item.segmentIndex) &&
         typeof item.text === "string" &&
         item.text.trim().length > 0
     );
@@ -135,33 +143,37 @@ export function parseTermResponse(responseText) {
 export function resolveTermTiming(segment, startWord, termText) {
   const defaultDuration = 3; // seconds
 
-  if (!segment || typeof segment.start !== "number") {
+  if (!segment || typeof segment.start !== "number" || typeof segment.end !== "number") {
     return { start: 0, end: defaultDuration };
   }
+
+  // Ensure valid segment boundaries
+  const segStart = Math.max(0, segment.start);
+  const segEnd = Math.max(segStart, segment.end);
 
   // Try to find the start word in word-level timestamps
   if (Array.isArray(segment.words) && segment.words.length > 0 && startWord) {
     const normalizedStart = startWord.toLowerCase().replace(/[^a-z0-9]/g, "");
     const wordIdx = segment.words.findIndex(
-      w => w.word && w.word.toLowerCase().replace(/[^a-z0-9]/g, "") === normalizedStart
+      w => w && w.word && w.word.toLowerCase().replace(/[^a-z0-9]/g, "") === normalizedStart
     );
 
-    if (wordIdx >= 0) {
+    if (wordIdx >= 0 && typeof segment.words[wordIdx].start === "number") {
       const wordStart = segment.words[wordIdx].start;
       // Term flash appears slightly before the word and holds for 2-4s
-      const flashStart = Math.max(segment.start, wordStart - 0.2);
-      const flashEnd = Math.min(segment.end, flashStart + defaultDuration);
-      return { start: flashStart, end: flashEnd };
+      const flashStart = Math.max(segStart, wordStart - 0.2);
+      const flashEnd = Math.min(segEnd, flashStart + defaultDuration);
+      return { start: flashStart, end: Math.max(flashStart, flashEnd) };
     }
   }
 
   // Fallback: center the flash within the segment
-  const segDuration = segment.end - segment.start;
+  const segDuration = segEnd - segStart;
   if (segDuration <= defaultDuration) {
-    return { start: segment.start, end: segment.end };
+    return { start: segStart, end: segEnd };
   }
 
-  const flashStart = segment.start + (segDuration - defaultDuration) / 2;
+  const flashStart = segStart + (segDuration - defaultDuration) / 2;
   return { start: flashStart, end: flashStart + defaultDuration };
 }
 
