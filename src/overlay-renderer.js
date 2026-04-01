@@ -84,6 +84,7 @@ export function resetRenderLock() {
  * @param {Object} params
  * @param {Array} params.captions - Caption entries [{id, start, end, text}]
  * @param {Array} params.termFlashes - Term flash entries [{id, start, end, text, type}]
+ * @param {Array} params.chapterTitles - Chapter title entries [{id, start, end, text}] (longform only)
  * @param {string} params.captionPreset - "white-on-black" | "black-on-white"
  * @param {string} params.captionStyle - "short" | "longform"
  * @param {number} params.durationInSeconds - Video duration
@@ -98,6 +99,7 @@ export async function renderOverlay(params) {
   const {
     captions = [],
     termFlashes = [],
+    chapterTitles = [],
     captionPreset = "white-on-black",
     captionStyle = "short",
     durationInSeconds,
@@ -122,6 +124,7 @@ export async function renderOverlay(params) {
   const inputProps = {
     captions,
     termFlashes,
+    chapterTitles,
     captionPreset,
     captionStyle,
     videoWidth: width,
@@ -212,6 +215,7 @@ export async function compositeOverlay(baseVideoPath, overlayPath, outputPath, o
  * @param {string} params.baseVideoPath - Base video path
  * @param {Array} params.captions - Caption entries
  * @param {Array} params.termFlashes - Term flash entries
+ * @param {Array} params.chapterTitles - Chapter title entries (longform only)
  * @param {string} params.captionPreset - Caption color preset
  * @param {string} params.captionStyle - "short" | "longform"
  * @param {number} params.durationInSeconds - Video duration
@@ -226,6 +230,7 @@ export async function renderAndComposite(params) {
     baseVideoPath,
     captions,
     termFlashes,
+    chapterTitles,
     captionPreset,
     captionStyle,
     durationInSeconds,
@@ -244,6 +249,7 @@ export async function renderAndComposite(params) {
   await renderOverlay({
     captions,
     termFlashes,
+    chapterTitles,
     captionPreset,
     captionStyle,
     durationInSeconds,

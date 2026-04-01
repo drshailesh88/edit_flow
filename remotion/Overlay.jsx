@@ -9,6 +9,7 @@ import React from "react";
 import { AbsoluteFill } from "remotion";
 import { Caption } from "./Caption.jsx";
 import { TermFlash } from "./TermFlash.jsx";
+import { ChapterTitle } from "./ChapterTitle.jsx";
 
 /**
  * Main overlay composition.
@@ -16,6 +17,7 @@ import { TermFlash } from "./TermFlash.jsx";
  * Props (via inputProps):
  * - captions: Array of caption entries [{id, start, end, text}]
  * - termFlashes: Array of term flash entries [{id, start, end, text, type}]
+ * - chapterTitles: Array of chapter title entries [{id, start, end, text}] (longform only)
  * - captionPreset: "white-on-black" | "black-on-white"
  * - captionStyle: "short" | "longform"
  * - videoWidth: pixel width
@@ -24,6 +26,7 @@ import { TermFlash } from "./TermFlash.jsx";
 export const Overlay = ({
   captions = [],
   termFlashes = [],
+  chapterTitles = [],
   captionPreset = "white-on-black",
   captionStyle = "short",
   videoWidth = 1920,
@@ -31,6 +34,13 @@ export const Overlay = ({
 }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "transparent" }}>
+      {captionStyle === "longform" && chapterTitles.length > 0 && (
+        <ChapterTitle
+          chapterTitles={chapterTitles}
+          videoWidth={videoWidth}
+          videoHeight={videoHeight}
+        />
+      )}
       <Caption
         captions={captions}
         preset={captionPreset}
