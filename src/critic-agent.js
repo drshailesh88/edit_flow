@@ -80,7 +80,7 @@ export function validateCritique(critique) {
   // Determine pass/fail: passes if no critical or major issues
   const hasCritical = issues.some(i => i.severity === "critical");
   const majorCount = issues.filter(i => i.severity === "major").length;
-  const passed = critique.passed === true || (!hasCritical && majorCount === 0);
+  const passed = !hasCritical && majorCount === 0 && critique.passed !== false;
 
   return {
     issues,
@@ -138,7 +138,7 @@ export function deterministicCritique(manifest, transcript) {
   }
 
   // Check 2: B-roll density for longform
-  if (manifest.type === "longform" && manifest.metadata?.totalDuration > 60) {
+  if (manifest.type === "longform" && manifest.metadata?.totalDuration >= 60) {
     const expectedBroll = Math.floor(manifest.metadata.totalDuration / 20);
     if (broll.length < Math.ceil(expectedBroll * 0.5)) {
       issues.push({
@@ -164,12 +164,12 @@ export function deterministicCritique(manifest, transcript) {
   }
 
   // Check 4: Very short segments (jump cuts)
-  const shortSegments = aroll.filter(e => e.duration < 0.5);
+  const shortSegments = aroll.filter(e => e.duration < 1.0);
   if (shortSegments.length > 0) {
     issues.push({
       category: "cuts",
       severity: "minor",
-      description: `${shortSegments.length} A-roll segment(s) shorter than 0.5s — potential jump cuts`,
+      description: `${shortSegments.length} A-roll segment(s) shorter than 1s — potential jump cuts (editorial voice: no segment < 1 second)`,
       timestamp: shortSegments[0]?.start || null,
       suggestion: "Merge with adjacent segments or remove",
     });
@@ -193,7 +193,7 @@ export function deterministicCritique(manifest, transcript) {
   if (Array.isArray(manifest.captions)) {
     const longCaptions = manifest.captions.filter(c => {
       if (!c || typeof c.text !== "string") return false;
-      return c.text.split(/\s+/).length > 20;
+      return c.text.trim().split(/\s+/).length > 20;
     });
     if (longCaptions.length > 0) {
       issues.push({

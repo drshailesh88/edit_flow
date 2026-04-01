@@ -241,7 +241,7 @@ describe("deterministicCritique", () => {
       ],
     });
     const issues = deterministicCritique(manifest, SAMPLE_TRANSCRIPT);
-    const shortIssue = issues.find(i => i.category === "cuts" && i.description.includes("0.5s"));
+    const shortIssue = issues.find(i => i.category === "cuts" && i.description.includes("1s"));
     assert.ok(shortIssue);
     assert.equal(shortIssue.severity, "minor");
   });
@@ -306,5 +306,80 @@ describe("DEFAULT_EDITORIAL_VOICE", () => {
   it("is a non-empty string", () => {
     assert.ok(typeof DEFAULT_EDITORIAL_VOICE === "string");
     assert.ok(DEFAULT_EDITORIAL_VOICE.length > 100);
+  });
+});
+
+// ─────────────────────────────────────────────────────
+// Adversarial tests — bugs found by adversary agent
+// ─────────────────────────────────────────────────────
+
+describe("validateCritique — severity must override passed flag", () => {
+  it("forces passed=false when critical issues exist even if passed=true is supplied", () => {
+    const result = validateCritique({
+      issues: [{ category: "structure", severity: "critical", description: "No timeline" }],
+      passed: true,
+      round: 1,
+    });
+    // BUG: line 83 — `critique.passed === true` short-circuits the severity check
+    // The OR means passed=true from Claude overrides the hasCritical/majorCount logic
+    assert.equal(result.passed, false, "Critical issues must force passed=false regardless of input");
+  });
+
+  it("forces passed=false when major issues exist even if passed=true is supplied", () => {
+    const result = validateCritique({
+      issues: [{ category: "broll", severity: "major", description: "Too sparse" }],
+      passed: true,
+      round: 1,
+    });
+    // Same bug: passed=true from Claude overrides major issue detection
+    assert.equal(result.passed, false, "Major issues must force passed=false regardless of input");
+  });
+});
+
+describe("deterministicCritique — boundary edge cases", () => {
+  it("flags low B-roll density for exactly 60s longform videos", () => {
+    // BUG: line 141 uses `> 60` but 60s IS longform and should be checked
+    const manifest = makeManifest({
+      timeline: [{ id: 1, type: "aroll", start: 0, end: 60, duration: 60 }],
+      captions: [{ id: 1, start: 0, end: 5, text: "Short caption." }],
+      metadata: { totalDuration: 60, arollSegments: 1, brollPlacements: 0, captionCount: 1, termFlashCount: 0 },
+    });
+    const issues = deterministicCritique(manifest, SAMPLE_TRANSCRIPT);
+    const brollIssue = issues.find(i => i.category === "broll" && i.description.includes("density"));
+    assert.ok(brollIssue, "60s longform with zero B-roll should flag density issue (>= 60, not > 60)");
+  });
+
+  it("flags a 0.5s A-roll segment as a jump cut per editorial voice", () => {
+    // BUG: line 167 uses `< 0.5` but editorial voice says "No segment shorter than 1 second"
+    // A 0.5s segment violates the 1-second rule but passes the 0.5s code check
+    const manifest = makeManifest({
+      timeline: [
+        { id: 1, type: "aroll", start: 0, end: 0.5, duration: 0.5 },
+        { id: 2, type: "aroll", start: 1, end: 30, duration: 29 },
+        { id: 3, type: "broll", start: 10, end: 15, duration: 5, confidence: "green", matchScore: 0.8 },
+      ],
+      captions: [{ id: 1, start: 0, end: 5, text: "Short caption." }],
+      metadata: { totalDuration: 30, arollSegments: 2, brollPlacements: 1, captionCount: 1, termFlashCount: 0 },
+    });
+    const issues = deterministicCritique(manifest, SAMPLE_TRANSCRIPT);
+    const cutIssue = issues.find(i => i.category === "cuts" && i.severity === "minor");
+    assert.ok(cutIssue, "0.5s segment should be flagged — editorial voice says no segment < 1 second");
+  });
+});
+
+describe("deterministicCritique — caption word counting with whitespace", () => {
+  it("does not false-positive on 19-word caption with leading/trailing whitespace", () => {
+    // BUG: line 191 — split(/\s+/) on "  word1 word2 ... word19  " produces
+    // ["", "word1", ..., "word19", ""] = 21 elements, triggering >20 check
+    const words19 = Array.from({ length: 19 }, (_, i) => "word" + i).join(" ");
+    const paddedText = "  " + words19 + "  ";
+
+    const manifest = makeManifest({
+      captions: [{ id: 1, start: 0, end: 10, text: paddedText }],
+      metadata: { totalDuration: 30, arollSegments: 1, brollPlacements: 1, captionCount: 1, termFlashCount: 0 },
+    });
+    const issues = deterministicCritique(manifest, SAMPLE_TRANSCRIPT);
+    const captionIssue = issues.find(i => i.category === "captions" && i.description.includes("20 words"));
+    assert.equal(captionIssue, undefined, "19 real words should not trigger >20 word warning despite whitespace");
   });
 });
