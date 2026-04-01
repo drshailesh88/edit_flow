@@ -14,7 +14,7 @@
   - **Why second:** Shorts are the daily posting content. Getting these working unlocks the creator's core publishing cadence (1 short/day).
   - Risk: **MEDIUM** (auto-reframe quality, Section boundary detection accuracy)
 
-- [ ] Phase 3: B-roll Automation — Library Indexing and Placement
+- [x] Phase 3: B-roll Automation — Library Indexing and Placement
   - **Deliverable:** B-roll from SSD Library automatically placed in Long-form (every 15-20s) and Shorts (selectively)
   - **Requirements:** B-roll Indexer (SQLite from SSD Library), B-roll Matcher (Claude matches transcript to index), FFmpeg B-roll insertion at timestamps, Yellow flag when no Match found
   - **Why third:** B-roll is the biggest time sink in manual editing. Automating it is the highest-value feature after basic cuts.

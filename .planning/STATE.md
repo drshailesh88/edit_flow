@@ -4,11 +4,12 @@
 **AI Video Editor Pipeline** — Created 2026-04-01
 
 ## Current Phase
-Phase 3: B-roll Automation — Library Indexing and Placement — Status: NOT STARTED
+Phase 4: Captions and Term Flashes — Remotion Overlay Pipeline — Status: NOT STARTED
 
 ## Completed Phases
 - Phase 1: Tracer Bullet — Raw Recording to Silence-Removed MP4 — COMPLETE (2026-04-01)
 - Phase 2: Shorts Extraction — 7-8 Standalone Shorts — COMPLETE (2026-04-01)
+- Phase 3: B-roll Automation — Library Indexing and Placement — COMPLETE (2026-04-01)
 
 ## Source Documents
 - PRD: .taskmaster/docs/prd.txt
@@ -21,8 +22,8 @@ Phase 3: B-roll Automation — Library Indexing and Placement — Status: NOT ST
 - Domain language: UBIQUITOUS_LANGUAGE.md
 
 ## Quick Reference
-- Next action: Start Phase 3 — build B-roll Automation
-- Build command: `/sprint-build-perfect-v2 3`
+- Next action: Start Phase 4 — build Captions and Term Flashes
+- Build command: `/sprint-build-perfect-v2 4`
 - Resume command: `/where-am-i`
 
 ## Readiness Score
@@ -33,7 +34,7 @@ Phase 3: B-roll Automation — Library Indexing and Placement — Status: NOT ST
 |-------|-------|------|--------|
 | 1 | Tracer Bullet — Recording to Silence-Removed MP4 | HIGH | COMPLETE |
 | 2 | Shorts Extraction — 7-8 Standalone Shorts | MEDIUM | COMPLETE |
-| 3 | B-roll Automation — Library Indexing and Placement | MEDIUM | NOT STARTED |
+| 3 | B-roll Automation — Library Indexing and Placement | MEDIUM | COMPLETE |
 | 4 | Captions and Term Flashes — Remotion Overlay Pipeline | MEDIUM | NOT STARTED |
 | 5 | Adversarial Quality Loop — Editor/Critic/Resolver | HIGH | NOT STARTED |
 | 6 | Overnight Batch Processing — Queue and Multi-Recording | LOW | NOT STARTED |

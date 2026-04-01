@@ -21,12 +21,12 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [x] Each Short is <60 seconds
 
 ### B-roll System
-- [ ] B-roll Library on SSD is indexed into a SQLite database with descriptions per clip
-- [ ] Indexing is incremental — only new clips are processed on subsequent runs
-- [ ] B-roll is automatically Matched to transcript moments by topic relevance
-- [ ] Long-form videos get aggressive B-roll (every 15-20 seconds)
-- [ ] Shorts get selective B-roll (topic-relevant moments only)
-- [ ] Pipeline flags Yellow (not inserts irrelevant footage) when no suitable Match exists
+- [x] B-roll Library on SSD is indexed into a SQLite database with descriptions per clip
+- [x] Indexing is incremental — only new clips are processed on subsequent runs
+- [x] B-roll is automatically Matched to transcript moments by topic relevance
+- [x] Long-form videos get aggressive B-roll (every 15-20 seconds)
+- [x] Shorts get selective B-roll (topic-relevant moments only)
+- [x] Pipeline flags Yellow (not inserts irrelevant footage) when no suitable Match exists
 
 ### Captions (Transcreation)
 - [ ] Hindi/Hinglish speech is transcreated into natural English Captions preserving meaning and intent
