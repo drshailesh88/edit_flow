@@ -13,8 +13,9 @@
  * All timecodes are frame-accurate using integer frame math.
  */
 
-import { writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
+import { resolve, dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 
 /**
  * Default export settings.
@@ -40,14 +41,17 @@ export function secondsToFrames(seconds, fps = 30) {
 }
 
 /**
- * Escape XML special characters.
+ * Escape XML special characters and strip forbidden XML 1.0 control characters.
  *
  * @param {string} str - Raw string
  * @returns {string} XML-safe string
  */
 export function escapeXml(str) {
   if (typeof str !== "string") return "";
+  // Strip XML 1.0 forbidden control characters (keep \t, \n, \r)
+  // eslint-disable-next-line no-control-regex
   return str
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -57,6 +61,7 @@ export function escapeXml(str) {
 
 /**
  * Convert a file path to a file:// URL for xmeml.
+ * Properly percent-encodes spaces and special characters.
  *
  * @param {string} filePath - Absolute or relative file path
  * @returns {string} file:// URL
@@ -64,7 +69,7 @@ export function escapeXml(str) {
 export function toFileUrl(filePath) {
   if (!filePath || typeof filePath !== "string") return "";
   const absolute = resolve(filePath);
-  return `file://localhost${absolute}`;
+  return pathToFileURL(absolute).href;
 }
 
 /**
@@ -82,23 +87,15 @@ export function toFileUrl(filePath) {
  * @param {number} params.fps - Frames per second
  * @param {number} params.width - Video width
  * @param {number} params.height - Video height
+ * @param {boolean} params.fileRefOnly - If true, emit self-closing <file> (reference only)
  * @returns {string} XML string
  */
 export function generateClipitem(params) {
-  const { id, name, fileId, filePath, start, end, inPoint, outPoint, fps, width, height } = params;
+  const { id, name, fileId, filePath, start, end, inPoint, outPoint, fps, width, height, fileRefOnly = false } = params;
 
-  return `          <clipitem id="${escapeXml(id)}">
-            <name>${escapeXml(name)}</name>
-            <duration>${end - start}</duration>
-            <rate>
-              <timebase>${fps}</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>${start}</start>
-            <end>${end}</end>
-            <in>${inPoint}</in>
-            <out>${outPoint}</out>
-            <file id="${escapeXml(fileId)}">
+  const fileBlock = fileRefOnly
+    ? `            <file id="${escapeXml(fileId)}"/>`
+    : `            <file id="${escapeXml(fileId)}">
               <name>${escapeXml(name)}</name>
               <pathurl>${escapeXml(toFileUrl(filePath))}</pathurl>
               <rate>
@@ -113,7 +110,20 @@ export function generateClipitem(params) {
                   </samplecharacteristics>
                 </video>
               </media>
-            </file>
+            </file>`;
+
+  return `          <clipitem id="${escapeXml(id)}">
+            <name>${escapeXml(name)}</name>
+            <duration>${outPoint - inPoint}</duration>
+            <rate>
+              <timebase>${fps}</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>${start}</start>
+            <end>${end}</end>
+            <in>${inPoint}</in>
+            <out>${outPoint}</out>
+${fileBlock}
           </clipitem>`;
 }
 
@@ -132,6 +142,7 @@ export function generateTrack(clipitems) {
 
 /**
  * Build V1 track (A-roll) from timeline segments.
+ * Uses sequential timeline positions (no gaps — silence already removed).
  *
  * @param {Array} segments - [{start, end}] A-roll segments in seconds
  * @param {string} recordingPath - Path to source recording
@@ -144,10 +155,13 @@ export function buildArollTrack(segments, recordingPath, options = {}) {
 
   const clips = [];
   let timelinePosition = 0;
+  let firstClip = true;
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     if (!seg || typeof seg.start !== "number" || typeof seg.end !== "number") continue;
+    if (!Number.isFinite(seg.start) || !Number.isFinite(seg.end)) continue;
+    if (seg.end <= seg.start) continue;
 
     const inFrame = secondsToFrames(seg.start, fps);
     const outFrame = secondsToFrames(seg.end, fps);
@@ -165,8 +179,10 @@ export function buildArollTrack(segments, recordingPath, options = {}) {
       fps,
       width,
       height,
+      fileRefOnly: !firstClip,
     }));
 
+    firstClip = false;
     timelinePosition += duration;
   }
 
@@ -190,8 +206,9 @@ export function buildBrollTrack(placements, options = {}) {
     const p = placements[i];
     if (!p) continue;
 
-    const startFrame = secondsToFrames(p.insertAt || p.start || 0, fps);
-    const dur = p.duration || (p.end ? p.end - (p.insertAt || p.start || 0) : 0);
+    const insertTime = p.insertAt ?? p.start ?? 0;
+    const startFrame = secondsToFrames(insertTime, fps);
+    const dur = p.duration ?? (p.end != null ? p.end - insertTime : 0);
     const durationFrames = secondsToFrames(dur, fps);
 
     if (durationFrames <= 0) continue;
@@ -298,9 +315,9 @@ export function generateXmeml(params) {
     options = {},
   } = params || {};
 
-  const fps = options.fps || DEFAULTS.fps;
-  const width = options.width || DEFAULTS.width;
-  const height = options.height || DEFAULTS.height;
+  const fps = options.fps ?? DEFAULTS.fps;
+  const width = options.width ?? DEFAULTS.width;
+  const height = options.height ?? DEFAULTS.height;
   const totalFrames = secondsToFrames(totalDuration, fps);
   const trackOpts = { fps, width, height };
 
@@ -313,6 +330,18 @@ export function generateXmeml(params) {
   const v2Track = generateTrack(v2Clips);
   const v3Track = generateTrack(v3Clips);
   const v4Track = generateTrack(v4Clips);
+
+  // Audio clipitem references the recording with proper file/rate tags
+  const audioFileBlock = recordingPath
+    ? `            <file id="source-recording-audio">
+              <name>Audio</name>
+              <pathurl>${escapeXml(toFileUrl(recordingPath))}</pathurl>
+              <rate>
+                <timebase>${fps}</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+            </file>`
+    : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
@@ -341,10 +370,16 @@ ${v4Track}
         <track>
           <clipitem id="audio-main">
             <name>Audio</name>
+            <duration>${totalFrames}</duration>
+            <rate>
+              <timebase>${fps}</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
             <start>0</start>
             <end>${totalFrames}</end>
             <in>0</in>
             <out>${totalFrames}</out>
+${audioFileBlock}
           </clipitem>
         </track>
       </audio>
@@ -365,6 +400,7 @@ export async function exportFcpXml(params, outputPath) {
     throw new Error("outputPath is required");
   }
 
+  await mkdir(dirname(outputPath), { recursive: true });
   const xml = generateXmeml(params);
   await writeFile(outputPath, xml, "utf-8");
   return outputPath;

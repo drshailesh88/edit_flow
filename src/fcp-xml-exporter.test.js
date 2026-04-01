@@ -81,7 +81,7 @@ describe("escapeXml", () => {
 describe("toFileUrl", () => {
   it("converts absolute path to file URL", () => {
     const result = toFileUrl("/Users/test/video.mp4");
-    assert.ok(result.startsWith("file://localhost/"));
+    assert.ok(result.startsWith("file:///"), `Expected file:/// prefix, got ${result}`);
     assert.ok(result.endsWith("video.mp4"));
   });
 
@@ -117,7 +117,7 @@ describe("generateClipitem", () => {
     assert.ok(xml.includes("<timebase>30</timebase>"));
     assert.ok(xml.includes("<width>1920</width>"));
     assert.ok(xml.includes("<height>1080</height>"));
-    assert.ok(xml.includes("file://localhost"));
+    assert.ok(xml.includes("file:///"));
   });
 
   it("escapes special characters in names", () => {
@@ -413,5 +413,107 @@ describe("exportFcpXml", () => {
       () => exportFcpXml({ name: "Test" }, null),
       { message: "outputPath is required" }
     );
+  });
+});
+
+describe("adversarial — Codex-found edge cases", () => {
+  it("toFileUrl percent-encodes spaces in paths", () => {
+    const url = toFileUrl("/Users/test/my video folder/clip.mp4");
+    assert.ok(!url.includes(" "), "URL should not contain raw spaces");
+    assert.ok(url.includes("my%20video%20folder") || url.includes("my+video+folder"),
+      "Spaces should be percent-encoded");
+  });
+
+  it("toFileUrl handles special characters (#, ?, %)", () => {
+    const url = toFileUrl("/Users/test/clip#2.mp4");
+    assert.ok(!url.includes("#2"), "Hash should be encoded");
+  });
+
+  it("escapeXml strips forbidden XML control characters", () => {
+    const result = escapeXml("hello\x00world\x01\x08test");
+    assert.ok(!result.includes("\x00"));
+    assert.ok(!result.includes("\x01"));
+    assert.ok(!result.includes("\x08"));
+    assert.ok(result.includes("helloworld"));
+    assert.ok(result.includes("test"));
+  });
+
+  it("escapeXml preserves allowed control chars (tab, newline, CR)", () => {
+    const result = escapeXml("hello\tworld\ntest\r");
+    assert.ok(result.includes("\t"));
+    assert.ok(result.includes("\n"));
+    assert.ok(result.includes("\r"));
+  });
+
+  it("buildArollTrack skips segments where end <= start", () => {
+    const segments = [
+      { start: 10, end: 5 },    // inverted — skip
+      { start: 5, end: 5 },     // zero duration — skip
+      { start: 0, end: 10 },    // valid
+    ];
+    const clips = buildArollTrack(segments, "/rec.mp4");
+    assert.equal(clips.length, 1);
+    assert.ok(clips[0].includes('id="aroll-3"'));
+  });
+
+  it("buildArollTrack skips NaN/Infinity segments", () => {
+    const segments = [
+      { start: NaN, end: 10 },
+      { start: 0, end: Infinity },
+      { start: 0, end: 5 },
+    ];
+    const clips = buildArollTrack(segments, "/rec.mp4");
+    assert.equal(clips.length, 1);
+  });
+
+  it("buildArollTrack uses fileRefOnly for second+ clips (no duplicate file defs)", () => {
+    const segments = [
+      { start: 0, end: 5 },
+      { start: 10, end: 15 },
+    ];
+    const clips = buildArollTrack(segments, "/rec.mp4");
+    assert.equal(clips.length, 2);
+    // First clip has full file definition
+    assert.ok(clips[0].includes("<pathurl>"));
+    // Second clip uses self-closing file reference
+    assert.ok(clips[1].includes('file id="source-recording"/>'));
+  });
+
+  it("buildBrollTrack handles insertAt=0 correctly (nullish coalescing)", () => {
+    const placements = [
+      { insertAt: 0, duration: 5, clipPath: "/b.mp4" },
+    ];
+    const clips = buildBrollTrack(placements);
+    assert.equal(clips.length, 1);
+    assert.ok(clips[0].includes("<start>0</start>"));
+    assert.ok(clips[0].includes("<end>150</end>")); // 5s * 30fps
+  });
+
+  it("generateXmeml audio track has file reference and rate", () => {
+    const xml = generateXmeml({
+      totalDuration: 10,
+      recordingPath: "/test/recording.mp4",
+    });
+    assert.ok(xml.includes('id="audio-main"'));
+    assert.ok(xml.includes('id="source-recording-audio"'));
+    assert.ok(xml.includes("<pathurl>"));
+  });
+
+  it("generateClipitem uses outPoint-inPoint for duration", () => {
+    const xml = generateClipitem({
+      id: "test",
+      name: "Test",
+      fileId: "f1",
+      filePath: "/test.mp4",
+      start: 100,
+      end: 400,
+      inPoint: 50,
+      outPoint: 350,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+    });
+    // Duration should be outPoint - inPoint = 300, not end - start = 300
+    assert.ok(xml.includes("<duration>300</duration>"));
   });
 });
