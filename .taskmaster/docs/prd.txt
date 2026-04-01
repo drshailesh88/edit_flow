@@ -1,0 +1,268 @@
+# PRD: AI Video Editor Pipeline
+
+## Problem Statement
+
+A cardiologist and content creator records ~30-minute Hindi/Hinglish talking-head videos and needs to produce one polished long-form video (16:9) and 7-8 standalone short-form videos (9:16, <60 sec) from each recording. Today, this requires hours of manual editing in DaVinci Resolve — silence removal, take selection, B-roll placement, caption creation, and reformatting for vertical. At 100 videos per month across multiple businesses, manual editing is unsustainable. No existing tool handles Hinglish code-switching, encodes personal editorial taste, or produces 100%-ready output without an NLE.
+
+## Solution
+
+A code-first AI video editing pipeline that runs inside Claude Code, processing raw recordings overnight into upload-ready MP4s and editable FCP XML files. The pipeline uses Whisper for local transcription, Claude for all editorial intelligence (take selection, B-roll matching, transcreation, term identification), Remotion for overlay rendering (captions, term flashes, chapter titles), and FFmpeg for final assembly. An adversarial quality loop (Editor/Critic/Resolver) evaluates every edit decision against the creator's encoded editorial voice before rendering. The system handles Hindi/Hinglish code-switching natively and transcreates captions into natural English for broader audience reach.
+
+## User Stories
+
+1. As a creator, I want to drop a raw 30-minute recording into the pipeline and wake up to 1 long-form video and 7-8 shorts ready to upload, so that I spend zero time in a video editor.
+
+2. As a creator, I want bad takes automatically detected and removed based on stumbling, wrong terminology, bad pronunciation, and low confidence delivery, so that only my best takes appear in the final video.
+
+3. As a creator, I want the pipeline to prefer the shorter, more confident version when two takes of the same section exist, so that the output matches my natural editing instinct.
+
+4. As a creator, I want my numbered script sections to automatically become individual shorts, so that each short contains one complete standalone thought.
+
+5. As a creator, I want B-roll from my existing SSD library automatically placed at topic-relevant moments in the video, so that I don't manually search for and insert cutaways.
+
+6. As a creator, I want B-roll placed more aggressively in long-form (every 15-20 seconds) and selectively in shorts, so that long-form retains viewer attention while shorts stay focused.
+
+7. As a creator, I want my Hindi/Hinglish speech transcribed accurately with word-level timestamps despite frequent mid-sentence language switching, so that all downstream editing decisions are based on reliable data.
+
+8. As a creator, I want captions transcreated into natural English (not word-for-word translated), so that non-Hindi speakers understand the meaning and intent of what I'm saying.
+
+9. As a creator, I want technical and operative medical terms to flash on screen when I say them with a clean, authoritative visual style (fade in/out, semi-transparent background, 2-4 seconds), so that viewers can read and retain specialized vocabulary.
+
+10. As a creator, I want key claims and statistics to appear as emphasis text overlays, using the same component as term flashes, so that important points are visually reinforced without cluttering the screen.
+
+11. As a creator, I want two caption styles available — white-on-black and black-on-white — automatically selected based on scene brightness, so that captions are always readable regardless of my recording environment.
+
+12. As a creator, I want chapter title cards automatically inserted between numbered sections in long-form videos, so that viewers see clear structural transitions.
+
+13. As a creator, I want every video auto-reframed from 16:9 to 9:16 for shorts using face-detection center crop, so that my face stays centered in vertical format without manual reframing.
+
+14. As a creator, I want an adversarial quality loop where a Critic agent attacks every edit decision (cut placement, take selection, B-roll appropriateness, term flash placement) against my editorial voice document, so that the output matches my taste and brand positioning.
+
+15. As a creator, I want the adversarial loop to run 3 rounds by default and up to 5 before flagging for review, so that quality is maximized without infinite processing.
+
+16. As a creator, I want the Critic to evaluate the JSON manifest and transcript (not a rendered preview), so that the loop runs fast enough to process 6-7 videos overnight.
+
+17. As a creator, I want every output tagged Green (auto-approved), Yellow (review recommended), or Red (review required), so that I only spend time reviewing videos that need attention.
+
+18. As a creator, I want both MP4 (final render) and FCP XML (with all layers on separate tracks) generated for every video, so that I can upload directly or open in Resolve for manual fixes.
+
+19. As a creator, I want the FCP XML to place A-roll on V1, B-roll on V2, captions on V3, and term flashes on V4, so that when I open it in Resolve the project feels like a skilled assistant set it up.
+
+20. As a creator, I want to batch-record multiple videos on the weekend, queue them all, and have the pipeline process them overnight, so that my Mac is free during working hours.
+
+21. As a creator, I want the pipeline to run sequentially (not parallel) to stay within my M2 Pro 16GB memory constraint, so that processing is reliable without crashes.
+
+22. As a creator, I want separate brand profiles (editorial voice, caption style, B-roll filter) for my medical practice and business coaching content, so that each business gets its own visual treatment and editorial standards.
+
+23. As a creator, I want the Critic's system prompt loaded with my editorial voice document for the active brand, so that it judges edits against the right standards for each business.
+
+24. As a creator, I want my B-roll library indexed once into a SQLite database with descriptions generated by Claude, so that matching is fast and costs nothing per video.
+
+25. As a creator, I want incremental B-roll indexing that only processes new clips, so that I can add footage to my library without re-indexing everything.
+
+26. As a creator, I want the pipeline to flag Yellow when no suitable B-roll is found for a segment rather than inserting an irrelevant clip, so that I can source the right footage manually.
+
+27. As a creator, I want suggested YouTube metadata (title, description, tags, chapter timestamps derived from section headings), so that I can copy-paste into YouTube Studio.
+
+28. As a creator, I want long-form captions to be smaller, at the bottom, with no animation — conservative and professional, so that they don't distract from the content.
+
+29. As a creator, I want short-form captions to be moderate-sized, in the lower third, full sentences displayed continuously with no word-by-word animation, so that they are readable and authoritative without feeling like a CapCut template.
+
+30. As a creator, I want the ability to switch caption type per video if the auto-detected style looks off-brand, so that I have a manual override when needed.
+
+31. As a creator, I want the pipeline to gracefully handle a disconnected B-roll SSD by completing all intelligence work and flagging Yellow for render later, so that editorial decisions don't block on hardware.
+
+32. As a creator, I want to interact with the pipeline through Claude Code slash commands (/ingest, /critique, /assemble, /review-queue, etc.), so that my interface is the terminal I already use daily.
+
+33. As a creator, I want a /full-pipeline command that processes a recording end-to-end (ingest → take selection → shorts extraction → B-roll matching → transcreation → term identification → adversarial loop → render), so that I can trigger everything with one command.
+
+34. As a creator, I want to give natural language feedback on a specific short ("swap the B-roll at 0:15 for something about stents") and have the pipeline update the manifest and re-render only that short, so that fixes are conversational and fast.
+
+35. As a creator, I want the visual style to feel like Huberman/Attia — clean, authoritative, minimal animations, no flashy transitions, no background music, no branded intro/outro — so that the output positions me as a subject matter expert.
+
+36. As a creator, I want an experimental Track B where Claude drives DaVinci Resolve via its Python/MCP scripting API, so that I can compare output quality against the pure-code Track A and pick the winner.
+
+37. As a creator, I want shorts to be platform-agnostic (no platform labels or watermarks), so that the same file goes to YouTube Shorts, Instagram Reels, and any other platform.
+
+38. As a creator, I want the pipeline to produce one short per section (not combine sections), keeping the architecture simple and predictable, with rare cross-section combinations handled manually in the escape hatch.
+
+## Implementation Decisions
+
+### Architecture: Two Rendering Tracks
+
+Track A (Primary — build first): Raw Recording → Whisper transcription → Claude intelligence (take selection, shorts extraction, B-roll matching, transcreation, term identification) → Manifest generation → Adversarial loop (manifest-only, no render) → Remotion overlay rendering (ProRes 4444 transparent) → FFmpeg assembly → MP4 + FCP XML.
+
+Track B (Experimental — build second): Same intelligence layer, but Claude drives DaVinci Resolve via samuelgursky/davinci-resolve-mcp (739 stars) for final rendering. Requires Resolve Studio ($295). Build after Track A is proven.
+
+Both tracks share the same intelligence layer. They diverge only at rendering. Whichever gives the fast win becomes the default.
+
+### Module Architecture (16 Modules)
+
+Intelligence Layer (Claude-driven, no rendering):
+- Ingest: Whisper transcription with word-level timestamps, local on M2 Pro. Start with whisper-large-v3, fall back to whisper-medium or whisper.cpp if 16GB is too tight.
+- Take Selector: Claude reads transcript, identifies repeated sections, selects best take using heuristic (shorter, more confident, more fluent). No take markers required — fully AI-driven.
+- Shorts Extractor: Claude reads transcript, identifies numbered section boundaries, outputs 7-8 short definitions with start/end timestamps. One section per short.
+- B-roll Indexer: One-time scan of SSD library. Extract one keyframe per clip via FFmpeg. Claude describes each clip. Store in SQLite with path, folder, description, tags, duration, resolution, format. Incremental updates for new clips.
+- B-roll Matcher: Claude reads transcript segment, searches SQLite index by topic folder + description, returns matched clip path + placement timestamp. Flags Yellow if no suitable match found.
+- Transcreator: Claude reads Hindi/Hinglish transcript, produces natural English captions preserving meaning and intent. Not word-for-word translation. Two modes: Hinglish content → English transcreation, English content → direct captions.
+- Term Identifier: Claude reads transcript, identifies technical/operative medical terms and key claims/statistics, outputs list of (term text, start timestamp, duration). Single component for both term flashes and emphasis points.
+- Manifest Builder: Takes outputs from all above modules, produces a single JSON manifest per output video. Contains: cut points, take selections, B-roll placements, caption assignments, term flash placements, chapter titles (long-form only). Human-readable and hand-editable.
+- Adversarial Loop: Runs Editor → Critic → Resolver cycle on each manifest. Critic evaluates manifest + transcript (no render). Priority stack: cut placement > bad take removal > B-roll placement > B-roll appropriateness > term flash placement > caption quality. 3 rounds default, 5 max. Outputs improved manifest + confidence tag.
+
+Rendering Layer (FFmpeg + Remotion, no Claude):
+- Auto-Reframe: Face detection on first frame + periodic drift check. Center crop from 16:9 to 9:16. Simple implementation first — upgrade only if results aren't good enough for seated talking head.
+- Remotion Overlay Renderer: Renders captions, term flashes, and chapter titles as transparent ProRes 4444 overlay. Uses @remotion/captions for sentence display, custom TermFlash component (~30 lines), brand theming via ThemeProvider. Mutex: 1 concurrent render.
+- FFmpeg Assembler: Cuts A-roll per manifest, inserts B-roll clips at specified timestamps, composites Remotion overlay, applies audio normalization. Single-pass where possible. Sequential to stay within 16GB.
+- FCP XML Exporter: Generates xmeml (FCP 7 XML format) compatible with Resolve and FCPX. Maps layers to tracks: V1=A-roll, V2=B-roll, V3=captions, V4=term flashes. Frame-accurate timecodes. Deterministic asset IDs.
+
+Orchestration Layer:
+- Queue: JSON-based job list with statuses (ready, processing, needs-review, done, failed). Processes recordings sequentially overnight. Dependency tracking between pipeline stages.
+- Brand Config: Loads brand profile by name from config/brands/. Provides editorial voice, caption style, B-roll filter to the adversarial loop and rendering modules.
+- Confidence Tagger: Evaluates adversarial loop results and pipeline events to assign Green/Yellow/Red per output. Yellow triggers: loop didn't converge, no B-roll match, ambiguous take, SSD disconnected. Red triggers: render failed, transcript unusable, Whisper confidence below threshold.
+
+### Interface: Claude Code Skills
+
+Each pipeline stage is a slash command via SKILL.md files in .claude/skills/:
+- /ingest [path] — Process raw recording (extract audio, transcribe)
+- /index-broll [path] — Index B-roll library on SSD
+- /process [path] — Full pipeline for one recording
+- /full-pipeline — Process all queued recordings
+- /critique [manifest] — Run adversarial loop on a manifest
+- /review-queue — Show pipeline status with confidence tags
+- /render-pending — Render any manifests waiting on SSD reconnection
+- /fix [short-id] "natural language instruction" — Update manifest and re-render one short
+
+CLAUDE.md ties everything together with project context, available commands, editorial voice location, and B-roll index path.
+
+### Data Formats
+
+Transcript: JSON with word-level timestamps from Whisper. Fields: segments[{start, end, text, words[{word, start, end, confidence}]}].
+
+Manifest: JSON per output video. Fields: id, type (long-form | short), brand, source_recording, sections[{section_number, best_take{start, end}, cuts[{start, end}]}], broll_placements[{timestamp, duration, clip_path, description}], captions[{start, end, text_english, text_original}], term_flashes[{timestamp, duration, text}], chapter_titles[{timestamp, text}] (long-form only), confidence_tag, adversarial_rounds, critic_notes[].
+
+B-roll Index: SQLite. Table: clips(id, path, folder, description, tags, duration_sec, width, height, format, indexed_at).
+
+Queue: JSON. Array of {id, recording_path, brand, status, manifests[], created_at, updated_at, error}.
+
+### Visual Treatment
+
+Huberman/Attia authority style. Visual restraint signals expertise.
+
+Caption component: Two presets (white-on-black, black-on-white), auto-selected by FFmpeg luminance analysis of lower-third region. Full sentences, no word animation, moderate size for shorts, smaller for long-form. Optional keyword highlighting in accent color.
+
+Term Flash component: Clean sans-serif, white text, semi-transparent dark background bar, fade in 0.3s, hold 2-4 seconds, fade out 0.3s. Positioned to avoid caption collision.
+
+Transitions: Hard cuts only. Occasional dissolve for chapter transitions in long-form.
+
+No background music, no branded intro/outro, no stock lifestyle B-roll.
+
+### Reusable Components from Reference Repos
+
+From @remotion/captions: createTikTokStyleCaptions() adapted for sentence-based display.
+From DigitalSamba: ThemeProvider + useTheme() for brand theming, discriminated union scene types for composition config.
+From Jonny Burger's repo: Multi-layer AbsoluteFill pattern, Sequence with layout="none" for B-roll overlay, interpolate() for all animations.
+From ButterCut: YAML/JSON manifest pattern, parent/child parallelism, progressive disclosure skills under 50 lines.
+From Matt Pocock: Remotion as transparent overlay renderer (ProRes 4444 alpha), FFmpeg for final composite, mutex for Remotion renders, semaphore concurrency control.
+
+### Hardware Constraints
+
+M2 Pro 16GB MacBook Pro. Sequential processing (not parallel). Whisper + Remotion cannot run simultaneously. Overnight processing window: ~10 hours. Capacity: 6-7 recordings per night at ~1.5 hours each.
+
+### Cost Structure
+
+Claude Max: already paying (covers all LLM calls — take selection, B-roll matching, transcreation, adversarial loop, B-roll indexing).
+Whisper: $0 (local).
+FFmpeg/Remotion: $0 (local).
+Resolve Studio (Track B only): $295 one-time.
+Marginal cost per video: $0.
+
+## Testing Decisions
+
+### What Makes a Good Test
+
+Tests should verify external behavior through the module's public interface, not implementation details. Give a module its expected input, verify its output matches expectations. Do not test Claude's specific wording — test that the output has the required structure and properties.
+
+### Modules to Test
+
+1. **Ingest** — Give it a sample audio file with known speech. Verify transcript JSON has word-level timestamps, segments are non-overlapping, and timestamps increase monotonically.
+
+2. **Take Selector** — Give it a transcript with two versions of the same content (one fluent, one with stumbles). Verify it selects the fluent version. Test with clear bad takes (incomplete sentences, wrong terms followed by corrections).
+
+3. **Shorts Extractor** — Give it a transcript from a recording with numbered sections. Verify it produces the correct number of shorts, each with valid start/end timestamps that don't overlap, and each containing a complete section.
+
+4. **B-roll Indexer** — Give it a folder of test video clips. Verify SQLite index has one entry per clip with non-empty description, valid duration, and correct path.
+
+5. **B-roll Matcher** — Give it a transcript segment about "coronary stenting" and an index with medical clips. Verify it returns a clip from a relevant folder (not random). Verify it flags Yellow when no match exists.
+
+6. **Manifest Builder** — Give it outputs from all upstream modules. Verify manifest JSON validates against schema, all timestamps are within recording duration, B-roll placements don't overlap with each other, and term flashes don't overlap with each other.
+
+7. **Adversarial Loop** — Give it a deliberately flawed manifest (B-roll during wrong topic, bad take not removed). Verify the output manifest has the issues fixed after 3 rounds. Verify confidence tagging (Green when converged, Yellow when max rounds hit).
+
+8. **Auto-Reframe** — Give it a 16:9 video with a face. Verify output is 9:16 and face is within the center 60% of the frame.
+
+9. **FFmpeg Assembler** — Give it A-roll + B-roll clips + overlay + manifest. Verify output MP4 duration matches expected, has audio, and has the correct resolution.
+
+10. **FCP XML Exporter** — Give it a manifest. Verify output XML is valid xmeml, has the correct number of tracks (V1-V4), clip count matches manifest, and timecodes are frame-accurate.
+
+11. **Queue** — Verify status transitions: ready → processing → done/failed. Verify it doesn't process two items simultaneously. Verify Yellow/Red items are surfaced in review.
+
+12. **Confidence Tagger** — Give it various adversarial loop results. Verify Green when converged in ≤3 rounds, Yellow when converged in 4-5 or specific flags present, Red on failures.
+
+### Test Strategy
+
+Integration tests over unit tests. Each module test creates real (small) test fixtures and verifies real output. For Claude-driven modules, test the structural properties of the output (valid JSON, correct timestamps, required fields present) rather than specific content. Use short test recordings (10-15 seconds) with known content to keep tests fast.
+
+## Out of Scope
+
+- Web UI or desktop app — interface is Claude Code slash commands only
+- Mobile app or mobile recording integration
+- YouTube/social media upload automation — user handles uploads in YouTube Studio
+- Thumbnail generation — user uses Canva
+- AI-generated B-roll — uses existing library only, flags gaps for manual sourcing
+- Real-time editing or live preview during pipeline execution
+- Multi-user collaboration
+- Cloud processing or deployment — runs locally on user's Mac
+- Voice cloning, eye contact correction, green screen, or other AI enhancement effects
+- Podcast-specific features (show notes, RSS)
+- Platform-specific video customization (different versions per platform)
+- Combining sections from different parts of recording into one short (rare edge case, handled manually)
+- Background music, branded intros/outros
+- Analytics or performance tracking of published content
+
+## Further Notes
+
+### Build Order (Weekend Plan)
+
+Weekend 1-2: Ingest + Take Selector + Shorts Extractor + FFmpeg Assembler (basic cuts, no overlays). Goal: raw recording → silence-removed, best-take long-form MP4.
+
+Weekend 3: B-roll Indexer + B-roll Matcher + FFmpeg B-roll insertion. Goal: B-roll automatically placed in long-form video.
+
+Weekend 4: Transcreator + Remotion Overlay Renderer (captions + term flashes) + FFmpeg composite. Goal: captions and term flashes on video.
+
+Weekend 5: Adversarial Loop + Confidence Tagger + Queue. Goal: overnight batch processing with quality control.
+
+Weekend 6: Auto-Reframe + Shorts rendering pipeline. Goal: 7-8 shorts produced per recording.
+
+Weekend 7: FCP XML Exporter + Brand profiles + editorial voice documents. Goal: escape hatch to Resolve, multi-business support.
+
+Weekend 8: Track B experiment (Claude drives Resolve via MCP). Goal: compare output quality.
+
+### Reference Projects
+
+- Matt Pocock's total-typescript-monorepo: Two-track architecture (FFmpeg+Remotion for shorts, Resolve for long-form), Effect-TS services, semaphore concurrency, queue system. The closest architectural precedent.
+- ButterCut (barefootford/buttercut, 297 stars): Claude Code skills for video editing, WhisperX, YAML rough cuts, FCPXML export. Proves the skills-based pipeline approach.
+- DigitalSamba Video Toolkit: Remotion + Claude Code integration, brand profiles, config-driven compositions, discriminated union scene types.
+- samuelgursky/davinci-resolve-mcp (739 stars): MCP bridge from Claude to Resolve. Enables Track B.
+- auto-subs (tmoroney/auto-subs, 3,013 stars): AI subtitles to Resolve timeline. Production-ready reference for Resolve integration.
+
+### Key Risks
+
+1. Whisper Hindi/Hinglish accuracy — may need benchmarking multiple models. Fallback: whisper.cpp for speed, accept lower accuracy on heavy code-switching segments.
+2. 16GB memory constraint — Whisper large-v3 may not fit alongside other processes. Fallback: whisper-medium or whisper.cpp.
+3. Auto-reframe quality — simple center crop may not handle gestures well. Fallback: accept for now, upgrade later.
+4. Adversarial loop quality — Critic effectiveness depends on editorial voice document quality. The founder must invest time writing detailed editorial standards with examples.
+5. FCP XML compatibility — xmeml format has quirks across Resolve versions. Test with the specific Resolve version installed.
+
+### Domain Language
+
+All development should use the terminology defined in UBIQUITOUS_LANGUAGE.md. Key terms: Recording, Long-form, Short, Section, Take, Best Take, B-roll, Caption, Term Flash, Library, Index, Match, Manifest, Pipeline, Ingest, Editor, Critic, Resolver, Round, Convergence, Transcreation, Track A, Track B, Escape Hatch, Green, Yellow, Red, Brand, Editorial Voice.

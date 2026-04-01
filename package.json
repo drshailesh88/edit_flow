@@ -1,0 +1,16 @@
+{
+  "name": "video-editor-pipeline",
+  "version": "0.1.0",
+  "description": "AI video editing pipeline — Claude Code + Whisper + Remotion + FFmpeg",
+  "type": "module",
+  "scripts": {
+    "test": "node --test src/**/*.test.js",
+    "ingest": "node src/ingest.js",
+    "assemble": "node src/assembler.js",
+    "pipeline": "node src/pipeline.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true
+}
