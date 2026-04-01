@@ -269,6 +269,41 @@ describe("countResolutions", () => {
 });
 
 // ─────────────────────────────────────────────────────
+// ADVERSARIAL — Codex-found bugs
+// ─────────────────────────────────────────────────────
+
+describe("ADVERSARIAL — Codex-found bugs", () => {
+  it("mergeShortSegments merges with nearest neighbor, not always previous", () => {
+    // Previous ends at 5s (gap=5), short at 10-10.4s, next starts at 10.4s (gap=0).
+    // Should merge into NEXT (closer), not previous.
+    const timeline = [
+      { id: 1, type: "aroll", start: 0, end: 5, duration: 5 },
+      { id: 2, type: "aroll", start: 10, end: 10.4, duration: 0.4 },
+      { id: 3, type: "aroll", start: 10.4, end: 15.4, duration: 5 },
+    ];
+    const result = mergeShortSegments(timeline);
+    const aroll = result.filter(e => e.type === "aroll");
+    assert.equal(aroll.length, 2);
+    // The 0.4s segment should merge into the 5s segment (next, gap=0)
+    const lastAroll = aroll[aroll.length - 1];
+    assert.equal(lastAroll.start, 10, "Short segment should merge into next neighbor (gap=0)");
+    assert.equal(lastAroll.duration, 5.4, "Merged segment should be 5.4s");
+  });
+
+  it("countResolutions does not overcount same-category issues", () => {
+    const issues = [
+      { category: "broll", severity: "major", description: "Low B-roll density" },
+      { category: "broll", severity: "minor", description: "Low confidence" },
+    ];
+    const changes = [{ category: "broll", description: "flagged for review" }];
+    const result = countResolutions(issues, changes);
+    // Only 1 change in category broll, should resolve at most 1 issue
+    assert.equal(result.resolved, 1, "1 change should resolve 1 issue, not 2");
+    assert.equal(result.remaining, 1);
+  });
+});
+
+// ─────────────────────────────────────────────────────
 // resolveManifest (with skipAI)
 // ─────────────────────────────────────────────────────
 

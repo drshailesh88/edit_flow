@@ -161,13 +161,30 @@ export function mergeShortSegments(timeline) {
       continue;
     }
 
-    // Short segment — merge with previous if available, else next
-    if (merged.length > 0) {
+    // Short segment — merge with nearest neighbor
+    const hasPrev = merged.length > 0;
+    const hasNext = i + 1 < aroll.length;
+
+    if (hasPrev && hasNext) {
+      // Merge with closer neighbor
+      const prevGap = seg.start - merged[merged.length - 1].end;
+      const nextGap = aroll[i + 1].start - seg.end;
+      if (prevGap <= nextGap) {
+        const prev = merged[merged.length - 1];
+        prev.end = Math.max(prev.end, seg.end);
+        prev.duration = prev.end - prev.start;
+      } else {
+        aroll[i + 1] = {
+          ...aroll[i + 1],
+          start: seg.start,
+          duration: aroll[i + 1].end - seg.start,
+        };
+      }
+    } else if (hasPrev) {
       const prev = merged[merged.length - 1];
       prev.end = Math.max(prev.end, seg.end);
       prev.duration = prev.end - prev.start;
-    } else if (i + 1 < aroll.length) {
-      // Merge with next by extending next's start
+    } else if (hasNext) {
       aroll[i + 1] = {
         ...aroll[i + 1],
         start: seg.start,
@@ -203,8 +220,20 @@ export function mergeShortSegments(timeline) {
 export function countResolutions(originalIssues, changes) {
   if (!Array.isArray(originalIssues)) return { resolved: 0, remaining: 0, resolutionRate: 0 };
 
-  const changeCategories = new Set((changes || []).map(c => c.category));
-  const resolved = originalIssues.filter(i => changeCategories.has(i.category)).length;
+  // Count changes per category, then resolve min(issues, changes) per category
+  const changeCounts = {};
+  for (const c of (changes || [])) {
+    changeCounts[c.category] = (changeCounts[c.category] || 0) + 1;
+  }
+
+  let resolved = 0;
+  const issueCounts = {};
+  for (const issue of originalIssues) {
+    issueCounts[issue.category] = (issueCounts[issue.category] || 0) + 1;
+  }
+  for (const cat of Object.keys(issueCounts)) {
+    resolved += Math.min(issueCounts[cat], changeCounts[cat] || 0);
+  }
   const remaining = originalIssues.length - resolved;
 
   return {
