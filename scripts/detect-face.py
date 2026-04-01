@@ -53,6 +53,21 @@ def detect_faces(video_path, num_samples=10):
     # Skip first and last 10% to avoid intro/outro
     start_frame = int(total_frames * 0.1)
     end_frame = int(total_frames * 0.9)
+
+    if num_samples <= 0:
+        cap.release()
+        return {
+            "face_detected": False,
+            "center_x": width // 2,
+            "center_y": height // 2,
+            "avg_width": 0,
+            "avg_height": 0,
+            "detections": 0,
+            "samples": 0,
+            "frame_width": width,
+            "frame_height": height,
+        }
+
     sample_interval = max(1, (end_frame - start_frame) // num_samples)
 
     face_centers_x = []

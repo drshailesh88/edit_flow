@@ -8,9 +8,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { detectFace, computeCropParams, autoReframe } from "./auto-reframe.js";
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { unlink, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { unlink, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 const TEST_FIXTURE = "test-fixtures/test-recording.mp4";
 const fixtureExists = existsSync(TEST_FIXTURE);
@@ -89,7 +91,7 @@ describe("Auto-Reframe — computeCropParams", () => {
   it("should throw on missing frame dimensions", () => {
     assert.throws(
       () => computeCropParams({ face_detected: true, center_x: 500, center_y: 300 }),
-      /Missing frame dimensions/
+      /frame dimensions/i
     );
   });
 
@@ -219,6 +221,130 @@ describe("Auto-Reframe — adversarial: edge cases", () => {
     } catch (e) {
       assert.ok(e.message.includes("Cannot open") || e.message.includes("failed"),
         `Unexpected error: ${e.message}`);
+    }
+  });
+
+  it("should not return a crop wider than the source frame", () => {
+    const faceResult = {
+      face_detected: true,
+      center_x: 150,
+      center_y: 540,
+      frame_width: 300,
+      frame_height: 1080,
+    };
+
+    const crop = computeCropParams(faceResult);
+    assert.ok(
+      crop.cropWidth <= faceResult.frame_width,
+      `Expected cropWidth <= ${faceResult.frame_width}, got ${crop.cropWidth}`
+    );
+  });
+
+  it("should reject non-positive frame dimensions", () => {
+    assert.throws(
+      () => computeCropParams({
+        face_detected: true,
+        center_x: 960,
+        center_y: 540,
+        frame_width: -1920,
+        frame_height: 1080,
+      }),
+      /frame/i
+    );
+
+    assert.throws(
+      () => computeCropParams({
+        face_detected: true,
+        center_x: 960,
+        center_y: 540,
+        frame_width: 1920,
+        frame_height: -1080,
+      }),
+      /frame/i
+    );
+  });
+
+  it("should not produce NaN crop coordinates when center_x is missing", () => {
+    const crop = computeCropParams({
+      face_detected: true,
+      center_y: 540,
+      frame_width: 1920,
+      frame_height: 1080,
+    });
+
+    assert.ok(Number.isFinite(crop.cropX), `Expected finite cropX, got ${crop.cropX}`);
+  });
+
+  it("python script should not crash when --samples is zero", async () => {
+    const fakeCv2Dir = await mkdtemp(join(tmpdir(), "fake-cv2-"));
+    const scriptPath = join(
+      decodeURIComponent(dirname(new URL(import.meta.url).pathname)),
+      "..",
+      "scripts",
+      "detect-face.py"
+    );
+
+    const fakeCv2 = `CAP_PROP_FRAME_COUNT = 7
+CAP_PROP_FRAME_WIDTH = 3
+CAP_PROP_FRAME_HEIGHT = 4
+CAP_PROP_POS_FRAMES = 1
+COLOR_BGR2GRAY = 6
+__file__ = __file__
+
+class VideoCapture:
+    def __init__(self, path):
+        self.path = path
+    def isOpened(self):
+        return True
+    def get(self, prop):
+        if prop == CAP_PROP_FRAME_COUNT:
+            return 10
+        if prop == CAP_PROP_FRAME_WIDTH:
+            return 1920
+        if prop == CAP_PROP_FRAME_HEIGHT:
+            return 1080
+        return 0
+    def set(self, prop, value):
+        return True
+    def read(self):
+        return True, "frame"
+    def release(self):
+        return True
+
+def cvtColor(frame, code):
+    return frame
+
+class CascadeClassifier:
+    def __init__(self, path):
+        self.path = path
+    def detectMultiScale(self, gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50)):
+        return []
+`;
+
+    await mkdir(join(fakeCv2Dir, "data"), { recursive: true });
+    await writeFile(join(fakeCv2Dir, "cv2.py"), fakeCv2);
+    await writeFile(join(fakeCv2Dir, "data", "haarcascade_frontalface_default.xml"), "");
+
+    try {
+      const result = spawnSync(
+        "python3",
+        [scriptPath, "/tmp/fake-video.mp4", "--samples", "0"],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            PYTHONPATH: fakeCv2Dir,
+          },
+        }
+      );
+
+      assert.equal(
+        result.status,
+        0,
+        `Expected zero exit status, got ${result.status}: ${result.stderr}`
+      );
+    } finally {
+      await rm(fakeCv2Dir, { recursive: true, force: true });
     }
   });
 });

@@ -83,16 +83,19 @@ export function computeCropParams(faceResult) {
   const frameWidth = faceResult.frame_width;
   const frameHeight = faceResult.frame_height;
 
-  if (!frameWidth || !frameHeight) {
-    throw new Error("Missing frame dimensions in face detection result");
+  if (!frameWidth || !frameHeight || frameWidth <= 0 || frameHeight <= 0) {
+    throw new Error("Missing or invalid frame dimensions in face detection result");
   }
 
   // 9:16 aspect ratio: width = height * 9/16
   const cropHeight = frameHeight;
-  const cropWidth = Math.round(cropHeight * 9 / 16);
+  let cropWidth = Math.round(cropHeight * 9 / 16);
 
-  // Center crop horizontally on face
-  const faceCenterX = faceResult.center_x;
+  // Clamp cropWidth to frame width (source may be narrower than 9:16)
+  cropWidth = Math.min(cropWidth, frameWidth);
+
+  // Center crop horizontally on face (default to frame center if center_x is missing)
+  const faceCenterX = typeof faceResult.center_x === "number" ? faceResult.center_x : Math.round(frameWidth / 2);
   let cropX = faceCenterX - Math.round(cropWidth / 2);
 
   // Clamp to frame bounds
