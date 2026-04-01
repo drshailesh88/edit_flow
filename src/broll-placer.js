@@ -159,7 +159,17 @@ export function placeBrollShort(transcriptSegments, brollDbPath, options = {}) {
     }
   }
 
-  return { manifest, stats, warnings };
+  // Recompute stats to match the filtered manifest (not raw matcher stats)
+  const filteredStats = {
+    totalMoments: stats.totalMoments,
+    totalPlacements: manifest.length,
+    greenPlacements: manifest.filter(p => p.confidence === "green").length,
+    yellowPlacements: manifest.filter(p => p.confidence === "yellow").length,
+    uniqueClipsUsed: new Set(manifest.filter(p => p.brollClip).map(p => p.brollClip.id)).size,
+    mode: stats.mode,
+  };
+
+  return { manifest, stats: filteredStats, warnings };
 }
 
 /**

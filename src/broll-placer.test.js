@@ -261,3 +261,97 @@ describe("B-roll Placer — formatBrollReport", () => {
     assert.ok(report.includes("Confidence:"), "report should show confidence");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// ADVERSARIAL TESTS — Bugs found by adversary agent
+// ═══════════════════════════════════════════════════════════════════
+
+// Segments spaced > 30s apart so selective mode (windowSize=30) creates separate moments.
+// One moment matches (surgery), one doesn't (quantum), one is excluded by duplicate exclusion.
+const ADVERSARIAL_SHORT_SEGMENTS = [
+  { start: 0, end: 15, text: "Surgery operating room medical hospital procedures." },
+  { start: 31, end: 45, text: "Quantum entanglement theoretical physics abstract concepts dimensions." },
+  { start: 61, end: 75, text: "Surgery in the hospital operating room is complex." },
+];
+
+describe("ADVERSARIAL — placeBrollShort stats mismatch with filtered manifest", () => {
+  before(seedTestDb);
+  after(async () => { await rm(TEST_DB, { force: true }); });
+
+  it("BUG: stats.totalPlacements should match manifest.length for shorts", () => {
+    const result = placeBrollShort(ADVERSARIAL_SHORT_SEGMENTS, TEST_DB);
+
+    // placeBrollShort filters out unmatched placements from the manifest,
+    // but returns the raw matcher stats unchanged.
+    // stats.totalPlacements=3 but manifest.length=1 — inconsistent.
+    assert.equal(
+      result.stats.totalPlacements,
+      result.manifest.length,
+      `stats.totalPlacements (${result.stats.totalPlacements}) should equal manifest.length (${result.manifest.length}) for shorts, ` +
+      `because shorts exclude unmatched placements from the manifest`
+    );
+  });
+
+  it("BUG: stats.yellowPlacements should reflect actual manifest, not pre-filter matcher", () => {
+    const result = placeBrollShort(ADVERSARIAL_SHORT_SEGMENTS, TEST_DB);
+
+    const manifestYellowCount = result.manifest.filter(p => p.confidence === "yellow").length;
+    assert.equal(
+      result.stats.yellowPlacements,
+      manifestYellowCount,
+      `stats.yellowPlacements (${result.stats.yellowPlacements}) should match actual Yellow entries in manifest (${manifestYellowCount})`
+    );
+  });
+});
+
+describe("ADVERSARIAL — computeBrollConfidence on short result is misleading", () => {
+  before(seedTestDb);
+  after(async () => { await rm(TEST_DB, { force: true }); });
+
+  it("BUG: confidence should be green when all manifest entries are matched clips", () => {
+    const result = placeBrollShort(ADVERSARIAL_SHORT_SEGMENTS, TEST_DB);
+
+    // All manifest entries have clips (shorts filter out unmatched)
+    const allManifestHaveClips = result.manifest.every(p => p.brollClip !== null);
+    assert.ok(allManifestHaveClips, "All manifest entries should have clips");
+    assert.ok(result.manifest.length > 0, "Should have at least one placement");
+
+    // computeBrollConfidence uses stats.yellowPlacements from the matcher
+    // which includes the filtered-out Yellow entries. This causes the confidence
+    // to be "yellow" even though the actual manifest is 100% green matched clips.
+    const confidence = computeBrollConfidence(result);
+    assert.equal(confidence, "green",
+      `Confidence should be green when manifest is 100% matched clips, ` +
+      `but stats.yellowPlacements=${result.stats.yellowPlacements} from matcher inflates the yellow ratio`
+    );
+  });
+});
+
+describe("ADVERSARIAL — formatBrollReport placements count mismatch for shorts", () => {
+  before(seedTestDb);
+  after(async () => { await rm(TEST_DB, { force: true }); });
+
+  it("BUG: report shows Placements != Green + Yellow (inconsistent numbers)", () => {
+    const result = placeBrollShort(ADVERSARIAL_SHORT_SEGMENTS, TEST_DB);
+    const report = formatBrollReport(result);
+
+    // The report displays manifest.length as "Placements:" (filtered, e.g. 1)
+    // but stats.greenPlacements and stats.yellowPlacements from the matcher (e.g. 1 and 2).
+    // So the report reads: Placements: 1, Green: 1, Yellow: 2 — contradictory.
+    const placementsMatch = report.match(/Placements:\s*(\d+)/);
+    const greenMatch = report.match(/Green:\s*(\d+)/);
+    const yellowMatch = report.match(/Yellow:\s*(\d+)/);
+
+    assert.ok(placementsMatch && greenMatch && yellowMatch, "Report should contain all fields");
+
+    const placements = parseInt(placementsMatch[1]);
+    const green = parseInt(greenMatch[1]);
+    const yellow = parseInt(yellowMatch[1]);
+
+    assert.equal(
+      placements,
+      green + yellow,
+      `Report inconsistency: Placements (${placements}) should equal Green (${green}) + Yellow (${yellow}) = ${green + yellow}`
+    );
+  });
+});
