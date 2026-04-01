@@ -15,6 +15,11 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",
-    "better-sqlite3": "^12.8.0"
+    "@remotion/cli": "^4.0.443",
+    "@remotion/renderer": "^4.0.443",
+    "better-sqlite3": "^12.8.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "remotion": "^4.0.443"
   }
 }
