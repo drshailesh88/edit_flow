@@ -1,8 +1,9 @@
 /**
- * Pipeline Module — Phase 1 + Phase 2
+ * Pipeline Module — Phase 1 + Phase 2 + Phase 3
  *
  * Phase 1: Ingest → Take Selection → Assembler (Long-form MP4)
  * Phase 2: Shorts Extraction → Per-Short Assembly (7-8 Short MP4s)
+ * Phase 3: B-roll Automation — Index Library + Match + Place
  */
 
 import { ingest } from "./ingest.js";
@@ -10,9 +11,12 @@ import { selectTakes } from "./take-selector.js";
 import { assembleFromSegments, getVideoDuration } from "./assembler.js";
 import { extractShortsFromTakes } from "./shorts-extractor.js";
 import { detectFace, autoReframe } from "./auto-reframe.js";
+import { indexLibrary, getIndexStats } from "./broll-indexer.js";
+import { placeBrollLongform, placeBrollShort, formatBrollReport, computeBrollConfidence } from "./broll-placer.js";
 import { mkdir } from "node:fs/promises";
 import { writeFile, readFile } from "node:fs/promises";
 import { join, basename } from "node:path";
+import { existsSync } from "node:fs";
 
 /**
  * Compute final speaking segments by intersecting silence-based segments
@@ -321,6 +325,169 @@ export async function runPhase2(recordingPath, options = {}) {
   return result;
 }
 
+/**
+ * Phase 3 pipeline: B-roll Automation
+ *
+ * Steps:
+ * 1. Index B-roll library (incremental — only new clips)
+ * 2. Load transcript from Phase 1 data
+ * 3. Match B-roll to long-form transcript (aggressive mode)
+ * 4. Match B-roll to each short transcript (selective mode)
+ * 5. Save placement manifests for later rendering
+ */
+export async function runPhase3(recordingPath, options = {}) {
+  const {
+    outputDir = "output",
+    dataDir = "data",
+    brollLibraryPath = null,
+    brollDbPath = null,
+  } = options;
+
+  const recordingName = basename(recordingPath).replace(/\.[^.]+$/, "");
+  const dbPath = brollDbPath || join(dataDir, "broll-index.db");
+
+  console.log("═══════════════════════════════════════");
+  console.log(`PHASE 3: B-roll Automation`);
+  console.log(`Recording: ${basename(recordingPath)}`);
+  console.log("═══════════════════════════════════════\n");
+
+  // Step 1: Index B-roll library (if path provided)
+  if (brollLibraryPath) {
+    console.log("STEP 1: Index B-roll Library (incremental)");
+    console.log("─────────────────────────────────────");
+
+    const indexStats = await indexLibrary(brollLibraryPath, dbPath, {
+      onProgress: (stats, result) => {
+        if (result.action === "inserted") {
+          console.log(`  + ${basename(result.filePath)}`);
+        } else if (result.action === "updated") {
+          console.log(`  ~ ${basename(result.filePath)}`);
+        }
+      },
+    });
+
+    console.log(`\n  Total scanned: ${indexStats.total}`);
+    console.log(`  New clips:     ${indexStats.inserted}`);
+    console.log(`  Updated:       ${indexStats.updated}`);
+    console.log(`  Skipped:       ${indexStats.skipped}`);
+    console.log(`  Errors:        ${indexStats.errors}\n`);
+  } else if (!existsSync(dbPath)) {
+    console.log("  No B-roll library path provided and no existing index found.");
+    console.log("  Run: node src/broll-indexer.js index <library-path>");
+    console.log("  Skipping B-roll placement.\n");
+
+    return {
+      recordingPath,
+      longformManifest: { manifest: [], stats: { totalPlacements: 0, mode: "aggressive" }, warnings: ["No B-roll index"] },
+      shortManifests: [],
+      brollConfidence: "yellow",
+    };
+  } else {
+    console.log("STEP 1: Using existing B-roll index");
+    console.log("─────────────────────────────────────");
+    const stats = getIndexStats(dbPath);
+    console.log(`  Clips in index: ${stats.totalClips}`);
+    console.log(`  Total duration: ${(stats.totalDuration / 60).toFixed(1)} min\n`);
+  }
+
+  // Step 2: Load transcript from Phase 1 data
+  console.log("STEP 2: Load transcript");
+  console.log("─────────────────────────────────────");
+
+  let transcript;
+  try {
+    const transcriptPath = join(dataDir, `${recordingName}-transcript.json`);
+    transcript = JSON.parse(await readFile(transcriptPath, "utf-8"));
+    console.log(`  Loaded: ${transcript.segments.length} segments\n`);
+  } catch {
+    console.log("  Transcript not found — run Phase 1 first.\n");
+    return {
+      recordingPath,
+      longformManifest: { manifest: [], stats: { totalPlacements: 0, mode: "aggressive" }, warnings: ["No transcript"] },
+      shortManifests: [],
+      brollConfidence: "yellow",
+    };
+  }
+
+  // Step 3: Match B-roll to long-form transcript (aggressive mode)
+  console.log("STEP 3: B-roll Matching — Long-form (aggressive, every 15-20s)");
+  console.log("─────────────────────────────────────");
+
+  const longformResult = placeBrollLongform(transcript.segments, dbPath);
+  console.log(formatBrollReport(longformResult));
+
+  // Save long-form manifest
+  const longformManifestPath = join(dataDir, `${recordingName}-broll-longform.json`);
+  await writeFile(longformManifestPath, JSON.stringify(longformResult, null, 2));
+  console.log(`\n  Saved: ${longformManifestPath}\n`);
+
+  // Step 4: Match B-roll to each short (selective mode)
+  console.log("STEP 4: B-roll Matching — Shorts (selective, topic-relevant)");
+  console.log("─────────────────────────────────────");
+
+  const shortManifests = [];
+  let shortsData;
+
+  try {
+    const shortsPath = join(dataDir, `${recordingName}-shorts.json`);
+    shortsData = JSON.parse(await readFile(shortsPath, "utf-8"));
+  } catch {
+    console.log("  Shorts data not found — run Phase 2 first.");
+    console.log("  Skipping short B-roll matching.\n");
+    shortsData = null;
+  }
+
+  if (shortsData && shortsData.shorts) {
+    for (const short of shortsData.shorts) {
+      // Create segments for this short from the main transcript
+      const shortSegments = transcript.segments.filter(
+        seg => seg.start >= short.start && seg.end <= short.end
+      );
+
+      const shortResult = placeBrollShort(shortSegments, dbPath);
+      shortManifests.push({
+        shortId: short.id,
+        ...shortResult,
+      });
+
+      const clipCount = shortResult.manifest.length;
+      const confidence = computeBrollConfidence(shortResult);
+      console.log(`  Short ${short.id}: ${clipCount} B-roll placement(s), confidence: ${confidence.toUpperCase()}`);
+    }
+
+    // Save short manifests
+    const shortsManifestPath = join(dataDir, `${recordingName}-broll-shorts.json`);
+    await writeFile(shortsManifestPath, JSON.stringify(shortManifests, null, 2));
+    console.log(`\n  Saved: ${shortsManifestPath}`);
+  }
+
+  // Step 5: Summary
+  const overallConfidence = computeBrollConfidence(longformResult);
+
+  console.log(`\n═══════════════════════════════════════`);
+  console.log(`PHASE 3 COMPLETE`);
+  console.log(`  Long-form: ${longformResult.manifest.length} placements (${longformResult.stats.greenPlacements} green, ${longformResult.stats.yellowPlacements} yellow)`);
+  console.log(`  Shorts: ${shortManifests.length} processed`);
+  console.log(`  Overall confidence: ${overallConfidence.toUpperCase()}`);
+  if (longformResult.warnings.length > 0) {
+    console.log(`  Warnings: ${longformResult.warnings.length}`);
+  }
+  console.log("═══════════════════════════════════════");
+
+  const result = {
+    recordingPath,
+    longformManifest: longformResult,
+    shortManifests,
+    brollConfidence: overallConfidence,
+  };
+
+  // Save full Phase 3 result
+  const resultPath = join(dataDir, `${recordingName}-phase3-result.json`);
+  await writeFile(resultPath, JSON.stringify(result, null, 2));
+
+  return result;
+}
+
 // CLI entry point
 if (process.argv[1] && process.argv[1].endsWith("pipeline.js") && process.argv[2]) {
   const phase = process.argv[2];
@@ -341,6 +508,16 @@ if (process.argv[1] && process.argv[1].endsWith("pipeline.js") && process.argv[2
       });
   } else if (phase === "2") {
     runPhase2(recordingPath, { whisperModel: model, language })
+      .then((result) => {
+        console.log("\nResult:", JSON.stringify(result, null, 2));
+      })
+      .catch((err) => {
+        console.error("Pipeline error:", err.message);
+        process.exit(1);
+      });
+  } else if (phase === "3") {
+    const brollLibraryPath = process.argv[4] || null;
+    runPhase3(recordingPath, { brollLibraryPath })
       .then((result) => {
         console.log("\nResult:", JSON.stringify(result, null, 2));
       })
