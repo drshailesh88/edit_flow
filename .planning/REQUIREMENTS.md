@@ -8,7 +8,7 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 ### Ingest & Transcription
 - [x] Pipeline accepts a raw 16:9 Recording (~30 min) and produces a Transcript with word-level timestamps
 - [x] Whisper runs locally on M2 Pro 16GB without crashing or exceeding memory
-- [ ] Hindi/Hinglish code-switching is transcribed with acceptable accuracy (benchmark against known recordings)
+- [x] Hindi/Hinglish code-switching is transcribed with acceptable accuracy (benchmark against known recordings)
 
 ### Take Selection
 - [x] Bad Takes are automatically detected from Transcript analysis (stumbling, incomplete sentences, wrong terminology followed by corrections)

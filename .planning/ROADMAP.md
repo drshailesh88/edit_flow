@@ -2,7 +2,7 @@
 
 ## Phases
 
-- [ ] Phase 1: Tracer Bullet — Raw Recording to Silence-Removed MP4
+- [x] Phase 1: Tracer Bullet — Raw Recording to Silence-Removed MP4
   - **Deliverable:** Drop a 30-min Recording in, get a silence-removed Long-form MP4 out
   - **Requirements:** Ingest (Whisper transcription), silence detection (FFmpeg), Take selection (Claude picks Best Takes), FFmpeg assembly (cut and concatenate)
   - **Why first:** Proves the core architecture works end-to-end. Every other phase builds on this foundation. If Whisper can't handle Hinglish or 16GB is too tight, we find out here.
