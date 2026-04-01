@@ -11,8 +11,8 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [ ] Hindi/Hinglish code-switching is transcribed with acceptable accuracy (benchmark against known recordings)
 
 ### Take Selection
-- [ ] Bad Takes are automatically detected from Transcript analysis (stumbling, incomplete sentences, wrong terminology followed by corrections)
-- [ ] When multiple Takes of the same Section exist, the shorter, more confident, more fluent version is selected as Best Take
+- [x] Bad Takes are automatically detected from Transcript analysis (stumbling, incomplete sentences, wrong terminology followed by corrections)
+- [x] When multiple Takes of the same Section exist, the shorter, more confident, more fluent version is selected as Best Take
 - [x] All silence gaps beyond a threshold are removed from the final output
 
 ### Shorts Extraction
