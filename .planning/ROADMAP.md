@@ -32,7 +32,7 @@
   - **Why fifth:** The adversarial loop is the quality gate. Building it after all pipeline stages exist means the Critic can evaluate complete Manifests (cuts + B-roll + Captions + Term Flashes), not partial ones.
   - Risk: **HIGH** (Critic effectiveness depends on Editorial Voice quality, loop convergence behavior, token usage per Round)
 
-- [ ] Phase 6: Overnight Batch Processing — Queue and Multi-Recording
+- [x] Phase 6: Overnight Batch Processing — Queue and Multi-Recording
   - **Deliverable:** Queue 5-7 Recordings, process them all overnight, wake up to tagged outputs ready for review
   - **Requirements:** Queue system (JSON status tracking), sequential processing, /review-queue command, overnight runner (headless Claude Code or shell script), Chapter Titles for Long-form, FCP XML export (xmeml with V1-V4 tracks)
   - **Why sixth:** Batch processing is the operational target (100 videos/month). Building it after the full pipeline works on single Recordings means the queue just orchestrates proven stages.

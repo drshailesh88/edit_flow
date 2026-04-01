@@ -44,8 +44,8 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [x] Term Flashes are positioned to avoid collision with Captions
 
 ### Chapter Titles (Long-form only)
-- [ ] Chapter Title cards appear between Sections in Long-form videos
-- [ ] Chapter Titles are derived from numbered script section headings
+- [x] Chapter Title cards appear between Sections in Long-form videos
+- [x] Chapter Titles are derived from numbered script section headings
 
 ### Adversarial Quality Loop
 - [x] Editor agent generates initial Manifest from Transcript + B-roll Index
@@ -66,10 +66,10 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [x] Creator's face stays centered in vertical format
 
 ### Output
-- [ ] Every output (Long-form + each Short) produces both MP4 and FCP XML (xmeml)
-- [ ] FCP XML maps layers to tracks: V1=A-roll, V2=B-roll, V3=Captions, V4=Term Flashes
-- [ ] FCP XML is compatible with DaVinci Resolve (free) and FCPX
-- [ ] Frame-accurate timecodes in XML
+- [x] Every output (Long-form + each Short) produces both MP4 and FCP XML (xmeml)
+- [x] FCP XML maps layers to tracks: V1=A-roll, V2=B-roll, V3=Captions, V4=Term Flashes
+- [x] FCP XML is compatible with DaVinci Resolve (free) and FCPX
+- [x] Frame-accurate timecodes in XML
 
 ### Confidence & Review
 - [x] Every output is tagged Green, Yellow, or Red
@@ -78,10 +78,10 @@ v1 — AI Video Editor Pipeline (Track A: Pure Code)
 - [x] Red: render failed, transcript unusable, Whisper confidence below threshold
 
 ### Queue & Batch Processing
-- [ ] Multiple Recordings can be queued for sequential overnight processing
-- [ ] Queue tracks status per Recording: ready → processing → done/failed
-- [ ] Pipeline processes 6-7 Recordings in a 10-hour overnight window
-- [ ] Creator can review Queue status with confidence tags via /review-queue
+- [x] Multiple Recordings can be queued for sequential overnight processing
+- [x] Queue tracks status per Recording: ready → processing → done/failed
+- [x] Pipeline processes 6-7 Recordings in a 10-hour overnight window
+- [x] Creator can review Queue status with confidence tags via /review-queue
 
 ### Brand System
 - [ ] Separate Brand profiles with distinct Editorial Voice, caption style, and B-roll filter
