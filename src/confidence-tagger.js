@@ -49,12 +49,17 @@ export function tagConfidence({ loopResult, manifest, pipelineFlags = {} } = {})
     return { tag: "red", reasons, details: buildDetails(loopResult) };
   }
 
-  // Whisper confidence below threshold
+  // Whisper confidence below threshold or out of valid range
   if (typeof pipelineFlags.whisperConfidence === "number" &&
-      Number.isFinite(pipelineFlags.whisperConfidence) &&
-      pipelineFlags.whisperConfidence < 0.5) {
-    reasons.push(`Whisper confidence below threshold: ${(pipelineFlags.whisperConfidence * 100).toFixed(0)}%`);
-    return { tag: "red", reasons, details: buildDetails(loopResult) };
+      Number.isFinite(pipelineFlags.whisperConfidence)) {
+    if (pipelineFlags.whisperConfidence < 0 || pipelineFlags.whisperConfidence > 1) {
+      reasons.push(`Whisper confidence out of valid range: ${pipelineFlags.whisperConfidence}`);
+      return { tag: "red", reasons, details: buildDetails(loopResult) };
+    }
+    if (pipelineFlags.whisperConfidence < 0.5) {
+      reasons.push(`Whisper confidence below threshold: ${(pipelineFlags.whisperConfidence * 100).toFixed(0)}%`);
+      return { tag: "red", reasons, details: buildDetails(loopResult) };
+    }
   }
 
   // Loop did not converge
@@ -85,21 +90,21 @@ export function tagConfidence({ loopResult, manifest, pipelineFlags = {} } = {})
     reasons.push("B-roll SSD was disconnected during processing");
   }
 
-  // Check manifest flags for yellow B-roll confidence
+  // Check manifest for yellow B-roll confidence (from flags or timeline, deduplicated)
+  let hasBrollConfidenceIssue = false;
   if (manifest && Array.isArray(manifest.flags)) {
     const brollConfFlag = manifest.flags.find(f => f.category === "broll-confidence");
-    if (brollConfFlag) {
-      reasons.push("B-roll placements with low match confidence");
-    }
+    if (brollConfFlag) hasBrollConfidenceIssue = true;
   }
-
-  // Check manifest timeline for yellow B-roll
-  if (manifest && Array.isArray(manifest.timeline)) {
+  if (!hasBrollConfidenceIssue && manifest && Array.isArray(manifest.timeline)) {
     const broll = manifest.timeline.filter(e => e.type === "broll");
     const yellowBroll = broll.filter(e => e.confidence === "yellow");
     if (broll.length > 0 && yellowBroll.length > broll.length * 0.5) {
-      reasons.push(`${yellowBroll.length}/${broll.length} B-roll placements have low confidence`);
+      hasBrollConfidenceIssue = true;
     }
+  }
+  if (hasBrollConfidenceIssue) {
+    reasons.push("B-roll placements with low match confidence");
   }
 
   // Check for remaining unresolved issues in the last round
@@ -154,8 +159,8 @@ export function tagBatch(outputs) {
     return { tags: [], summary: { green: 0, yellow: 0, red: 0, total: 0 } };
   }
 
-  const tags = outputs.map(output => ({
-    id: output.id || "unknown",
+  const tags = outputs.map((output, index) => ({
+    id: output.id || `unknown-${index + 1}`,
     ...tagConfidence(output),
   }));
 

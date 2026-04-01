@@ -316,3 +316,54 @@ describe("formatTag", () => {
     assert.ok(formatted.includes("?"));
   });
 });
+
+// ─────────────────────────────────────────────────────
+// ADVERSARIAL — Codex-found bugs
+// ─────────────────────────────────────────────────────
+
+describe("ADVERSARIAL — Codex-found bugs", () => {
+  it("treats Whisper confidence above 1 as invalid and red", () => {
+    const result = tagConfidence({
+      loopResult: makeLoopResult(),
+      manifest: makeManifest(),
+      pipelineFlags: { whisperConfidence: 1.2 },
+    });
+    assert.equal(result.tag, "red");
+  });
+
+  it("treats negative Whisper confidence as invalid and red", () => {
+    const result = tagConfidence({
+      loopResult: makeLoopResult(),
+      manifest: makeManifest(),
+      pipelineFlags: { whisperConfidence: -0.1 },
+    });
+    assert.equal(result.tag, "red");
+  });
+
+  it("deduplicates yellow B-roll confidence reasons", () => {
+    const result = tagConfidence({
+      loopResult: makeLoopResult(),
+      manifest: {
+        flags: [{ category: "broll-confidence", severity: "yellow" }],
+        timeline: [
+          { id: 1, type: "broll", confidence: "yellow" },
+          { id: 2, type: "broll", confidence: "yellow" },
+        ],
+      },
+    });
+    const confReasons = result.reasons.filter(
+      r => r.toLowerCase().includes("confidence")
+    );
+    assert.equal(confReasons.length, 1, "Should have exactly 1 confidence reason, not 2");
+  });
+
+  it("assigns unique fallback IDs in batch when IDs are missing", () => {
+    const result = tagBatch([
+      { id: undefined, loopResult: null, manifest: null },
+      { id: undefined, loopResult: null, manifest: null },
+    ]);
+    const ids = result.tags.map(t => t.id);
+    assert.equal(new Set(ids).size, ids.length, "All IDs should be unique");
+    assert.notEqual(ids[0], ids[1]);
+  });
+});
